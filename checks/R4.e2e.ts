@@ -29,8 +29,10 @@ test("the reviewer can get in", async ({ app, agent }) => {
     }
   }
   if (!found) {
-    console.log("No sign-up or sign-in screen was found, so nothing is kept behind an account.");
-    return;
+    // The first answer says an account is needed, so a screen that would not open is not proof that none is needed.
+    const reason = "The app needs an account, but its sign-up or sign-in screen could not be opened.";
+    markNotChecked(reason);
+    test.skip(reason);
   }
 
   const options = await agent.extract(
