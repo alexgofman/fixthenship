@@ -1,6 +1,6 @@
 // Relative imports so the tests can load this route without the "@/" alias.
 import { startFixLoop } from "../../../../../lib/fix/loop";
-import { startFixes } from "../../../../../lib/fix/startFixes";
+import { FixStageError, startFixes } from "../../../../../lib/fix/startFixes";
 import { addRepo } from "../../../../../lib/review/pipeline";
 import { isValidRunId, loadRun } from "../../../../../lib/store";
 
@@ -50,6 +50,7 @@ export async function POST(request: Request, ctx: RouteContext<"/api/runs/[runId
     if (run.stage === "fixing") void startFixLoop(runId);
     return Response.json(run);
   } catch (err) {
+    if (err instanceof FixStageError) return Response.json({ error: err.message }, { status: 409 });
     const message = err instanceof Error ? err.message : String(err);
     return Response.json({ error: `Could not start fixes: ${message}` }, { status: 500 });
   }
