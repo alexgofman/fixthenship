@@ -1,0 +1,340 @@
+import type { ChildProcess, SpawnOptions } from "node:child_process";
+import { EventEmitter } from "node:events";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { PassThrough } from "node:stream";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { mergeFixes } from "../../lib/recheck/mergeFixes";
+import { RECHECK_URL, recheckApp, type RecheckDeps } from "../../lib/recheck/recheckApp";
+import { REVIEW_RULES } from "../../lib/review/pipeline";
+import { loadRun, saveRun } from "../../lib/store";
+import type { CheckResult, Finding, FixSession, RuleId, Run } from "../../lib/types";
+
+let dir: string;
+
+beforeEach(async () => {
+  dir = await mkdtemp(path.join(os.tmpdir(), "fixthenship-recheck-"));
+  process.env.RUNS_DIR = dir;
+  process.env.GITHUB_TOKEN = "ghp_test";
+  vi.spyOn(console, "error").mockImplementation(() => {});
+});
+
+afterEach(async () => {
+  delete process.env.RUNS_DIR;
+  delete process.env.GITHUB_TOKEN;
+  vi.restoreAllMocks();
+  await rm(dir, { recursive: true, force: true });
+});
+
+function finding(ruleId: RuleId, state: Finding["state"] = "fail", source: Finding["source"] = "both"): Finding {
+  return {
+    ruleId,
+    guideline: "x",
+    title: `Title ${ruleId}`,
+    detail: `Detail ${ruleId}.`,
+    source,
+    evidence: [{ kind: "code", file: "src/App.tsx", line: 3, caption: `Caption ${ruleId}` }],
+    confidence: "high",
+    state,
+    fixable: "yes",
+    finalState: "",
+    humanStep: "",
+  };
+}
+
+function fix(ruleId: RuleId, number: number, status: FixSession["status"] = "finished"): FixSession {
+  return {
+    ruleId,
+    sessionId: `devin-${number}`,
+    url: `https://app.devin.ai/sessions/${number}`,
+    status,
+    prUrl: `https://github.com/acme/app/pull/${number}`,
+    summary: "",
+    acus: 1,
+  };
+}
+
+async function makeRun(findings: Finding[], fixes: FixSession[] = []): Promise<Run> {
+  const run: Run = {
+    id: "run1",
+    createdAt: new Date().toISOString(),
+    repoUrl: "https://github.com/acme/app",
+    appUrl: "https://app.acme.dev",
+    stage: "fixed",
+    findings,
+    fixes,
+    error: "",
+  };
+  await saveRun(run);
+  return run;
+}
+
+type Call = { method: string; url: string; body: unknown; auth: string };
+
+/** Fake GitHub: every PR is open against store-ready; PRs in `conflicts` are refused with 405. */
+function fakeGitHub(conflicts: number[] = []): { fetch: typeof fetch; calls: Call[] } {
+  const calls: Call[] = [];
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+  const fake = async (input: string | URL | Request, init: RequestInit = {}) => {
+    const url = String(input);
+    const method = init.method ?? "GET";
+    const headers = (init.headers ?? {}) as Record<string, string>;
+    calls.push({ method, url, body: init.body ? JSON.parse(String(init.body)) : undefined, auth: headers.Authorization });
+    const n = Number(url.match(/\/pulls\/(\d+)/)?.[1]);
+    if (method === "GET") return json({ state: "open", merged: false, base: { ref: "store-ready" }, head: { sha: `sha${n}` } });
+    if (conflicts.includes(n)) return json({ message: "Pull Request is not mergeable" }, 405);
+    return json({ merged: true, sha: "abc" });
+  };
+  return { fetch: fake as typeof fetch, calls };
+}
+
+type FakeChild = ChildProcess & { finish: (code: number) => void };
+
+function fakeChild(pid: number): FakeChild {
+  const child = new EventEmitter() as FakeChild;
+  Object.assign(child, { pid, exitCode: null, signalCode: null, stdout: new PassThrough(), stderr: new PassThrough() });
+  child.finish = (code) => {
+    if (child.exitCode !== null) return;
+    (child as { exitCode: number | null }).exitCode = code;
+    child.emit("exit", code, null);
+  };
+  return child;
+}
+
+type Harness = {
+  deps: Partial<RecheckDeps>;
+  spawned: { args: string[]; options: SpawnOptions; child: FakeChild }[];
+  kills: [number, string][];
+};
+
+/** Fake child processes: the app answers once spawned and dies on SIGTERM. `crashOnStart` makes npm exit at once. */
+function harness({ crashOnStart = false } = {}): Harness {
+  const spawned: Harness["spawned"] = [];
+  const kills: [number, string][] = [];
+  let up = false;
+  const deps: Partial<RecheckDeps> = {
+    mergeFixes: async () => ({ merged: [], skipped: [] }),
+    clone: async (_url, _branch, dest) => {
+      await mkdir(dest, { recursive: true });
+    },
+    install: async () => {},
+    spawn: (_cmd, args, options) => {
+      const child = fakeChild(1000 + spawned.length);
+      spawned.push({ args, options, child });
+      if (crashOnStart) {
+        queueMicrotask(() => {
+          child.stderr?.emit("data", "error: unknown option '--port'\n");
+          child.finish(1);
+        });
+      } else up = true;
+      return child;
+    },
+    kill: (pid, signal) => {
+      kills.push([pid, signal]);
+      const target = spawned.find((s) => s.child.pid === -pid);
+      if (signal === "SIGTERM" && target) {
+        up = false;
+        target.child.finish(0);
+      }
+    },
+    isUp: async () => up,
+    scan: async () => [],
+    pollMs: 1,
+    stopGraceMs: 10,
+    startTimeoutMs: 2_000,
+  };
+  return { deps, spawned, kills };
+}
+
+/** Fake checks: every review rule gets `outcomes[rule] ?? "pass"`, with a screenshot and trace on disk. */
+function checksWith(outcomes: Partial<Record<RuleId, CheckResult["outcome"]>> = {}): RecheckDeps["runChecks"] {
+  return async (appUrl, outDir, ruleIds) => {
+    expect(appUrl).toBe(RECHECK_URL);
+    expect(outDir).toBe(path.join(dir, "run1", "recheck"));
+    expect(ruleIds).toEqual(REVIEW_RULES);
+    const results: CheckResult[] = [];
+    for (const ruleId of ruleIds) {
+      const shot = path.join(outDir, ruleId, "attempt-1", "screenshots", "001.png");
+      await mkdir(path.dirname(shot), { recursive: true });
+      await writeFile(shot, "png");
+      await writeFile(path.join(outDir, ruleId, "trace.md"), "# Trace");
+      results.push({ ruleId, outcome: outcomes[ruleId] ?? "pass", reason: `${ruleId} reason.`, steps: [], screenshots: [shot] });
+    }
+    return results;
+  };
+}
+
+function byRule(run: Run): Record<string, Finding> {
+  return Object.fromEntries(run.findings.map((f) => [f.ruleId, f]));
+}
+
+describe("mergeFixes", () => {
+  it("merges finished pull requests one at a time and leaves refused ones amber with the link", async () => {
+    await makeRun(
+      [finding("R2"), finding("R5"), finding("R6")],
+      [fix("R2", 11), fix("R5", 12), fix("R6", 13, "error"), { ...fix("R6", 14), prUrl: "" }],
+    );
+    const gh = fakeGitHub([12]);
+
+    const result = await mergeFixes("run1", { fetch: gh.fetch });
+
+    expect(result).toEqual({ merged: ["R2"], skipped: ["R5"] });
+    expect(gh.calls.map((c) => `${c.method} ${c.url}`)).toEqual([
+      "GET https://api.github.com/repos/acme/app/pulls/11",
+      "PUT https://api.github.com/repos/acme/app/pulls/11/merge",
+      "GET https://api.github.com/repos/acme/app/pulls/12",
+      "PUT https://api.github.com/repos/acme/app/pulls/12/merge",
+    ]);
+    expect(gh.calls[1].body).toMatchObject({ merge_method: "merge", sha: "sha11" });
+    expect(gh.calls.every((c) => c.auth === "Bearer ghp_test")).toBe(true);
+    const saved = byRule(await loadRun("run1"));
+    expect(saved.R5).toMatchObject({
+      finalState: "amber",
+      humanStep: "Merge this pull request by hand: https://github.com/acme/app/pull/12",
+    });
+    expect(saved.R2.finalState).toBe("");
+  });
+});
+
+describe("recheckApp", () => {
+  it("marks a finding green when the check now passes and the scan no longer finds it", async () => {
+    await makeRun([finding("R5"), finding("R1", "pass", "app")]);
+    const h = harness();
+
+    await recheckApp("run1", { ...h.deps, runChecks: checksWith() });
+
+    const saved = await loadRun("run1");
+    expect(saved.stage).toBe("done");
+    const r5 = byRule(saved).R5;
+    expect(r5.finalState).toBe("green");
+    expect(r5.evidence.slice(1)).toEqual([
+      { kind: "screenshot", path: "recheck/R5/attempt-1/screenshots/001.png", caption: "After the fix: screen at the end of the R5 check" },
+      { kind: "log", path: "recheck/R5/trace.md", caption: "After the fix: steps of the R5 check (pass): R5 reason." },
+    ]);
+    expect(byRule(saved).R1.finalState).toBe("");
+    expect(h.spawned[0].args).toEqual(["run", "dev", "--", "--port", "4010"]);
+    expect(h.spawned[0].options).toMatchObject({ detached: true, cwd: path.join(dir, "run1", "recheck-repo") });
+    expect(h.spawned[0].options.env?.GITHUB_TOKEN).toBeUndefined();
+    expect(h.kills).toContainEqual([-1000, "SIGTERM"]);
+  });
+
+  it("keeps R7 and R8 amber with the human step even when they pass", async () => {
+    await makeRun([finding("R7"), finding("R8")]);
+    const h = harness();
+
+    await recheckApp("run1", { ...h.deps, runChecks: checksWith() });
+
+    const saved = byRule(await loadRun("run1"));
+    expect(saved.R7).toMatchObject({ finalState: "amber", humanStep: "Add your Apple developer keys to finish Sign in with Apple" });
+    expect(saved.R8).toMatchObject({
+      finalState: "amber",
+      humanStep: "Selling inside the iPhone app needs in-app purchase; the outside checkout is now hidden there",
+    });
+  });
+
+  it("ends amber with the link when the merge is refused", async () => {
+    await makeRun([finding("R2"), finding("R6")], [fix("R2", 21), fix("R6", 22)]);
+    const h = harness();
+    const gh = fakeGitHub([22]);
+
+    await recheckApp("run1", {
+      ...h.deps,
+      mergeFixes: (runId) => mergeFixes(runId, { fetch: gh.fetch }),
+      runChecks: checksWith({ R6: "fail" }),
+    });
+
+    const saved = await loadRun("run1");
+    expect(saved.stage).toBe("done");
+    expect(byRule(saved).R2.finalState).toBe("green");
+    expect(byRule(saved).R6).toMatchObject({
+      finalState: "amber",
+      humanStep: "Merge this pull request by hand: https://github.com/acme/app/pull/22",
+    });
+  });
+
+  it("ends red when the check still fails, the scan still finds it, or nothing checked it", async () => {
+    await makeRun([finding("R2"), finding("R5"), finding("R6"), finding("R13", "fail", "app")]);
+    const h = harness();
+
+    await recheckApp("run1", {
+      ...h.deps,
+      scan: async () => [finding("R5", "fail", "code")],
+      runChecks: checksWith({ R2: "fail", R6: "not_checked" }),
+    });
+
+    const saved = byRule(await loadRun("run1"));
+    expect(saved.R2.finalState).toBe("red");
+    expect(saved.R2.evidence.at(-1)?.caption).toBe("After the fix: steps of the R2 check (fail): R2 reason.");
+    expect(saved.R5.finalState).toBe("red");
+    expect(saved.R6.finalState).toBe("red");
+    expect(saved.R13.finalState).toBe("red");
+  });
+
+  it("stops the app even when the checks throw", async () => {
+    await makeRun([finding("R2")]);
+    const h = harness();
+
+    await recheckApp("run1", {
+      ...h.deps,
+      runChecks: async () => {
+        throw new Error("browser crashed");
+      },
+    });
+
+    expect(h.kills).toEqual([
+      [-1000, "SIGTERM"],
+      [-1000, "SIGKILL"],
+    ]);
+    const saved = await loadRun("run1");
+    expect(saved.stage).toBe("done");
+    expect(byRule(saved).R2.finalState).toBe("red");
+    expect(byRule(saved).R2.detail).toContain("browser crashed");
+  });
+
+  it("falls back to PORT, then marks unfixed findings red when the app cannot start", async () => {
+    await makeRun([finding("R2"), finding("R5"), finding("R1", "pass", "app")], [fix("R5", 31)]);
+    const h = harness({ crashOnStart: true });
+    const checks = vi.fn();
+
+    await recheckApp("run1", {
+      ...h.deps,
+      mergeFixes: (runId) => mergeFixes(runId, { fetch: fakeGitHub([31]).fetch }),
+      runChecks: checks,
+    });
+
+    expect(h.spawned.map((s) => s.args)).toEqual([
+      ["run", "dev", "--", "--port", "4010"],
+      ["run", "dev"],
+    ]);
+    expect(h.spawned[1].options.env?.PORT).toBe("4010");
+    expect(checks).not.toHaveBeenCalled();
+    const saved = await loadRun("run1");
+    expect(saved.stage).toBe("done");
+    const r2 = byRule(saved).R2;
+    expect(r2.finalState).toBe("red");
+    expect(r2.detail).toMatch(/^Detail R2\. The fixed app could not be started for the re-check: npm run dev exited with code 1/);
+    expect(byRule(saved).R5.finalState).toBe("amber");
+    expect(byRule(saved).R1.finalState).toBe("");
+  });
+
+  it("ends done without crashing when the clone fails", async () => {
+    await makeRun([finding("R2")]);
+    const h = harness();
+
+    await recheckApp("run1", {
+      ...h.deps,
+      clone: async () => {
+        throw new Error("Remote branch store-ready not found");
+      },
+    });
+
+    const saved = await loadRun("run1");
+    expect(saved.stage).toBe("done");
+    expect(byRule(saved).R2.detail).toBe(
+      "Detail R2. The fixed app could not be started for the re-check: Remote branch store-ready not found",
+    );
+    expect(h.spawned).toHaveLength(0);
+  });
+});
