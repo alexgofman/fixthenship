@@ -200,6 +200,34 @@ the model returned no usable answer.
     expect(calls.map((c) => /checks\/(R\d+)/.exec(c.args.join(" "))![1])).toEqual(["R1", "R1", "R2", "R2", "R5", "R5", "R6"]);
   });
 
+  it("treats running out of time or steps, or a screen it could not use, as not checked and tries once more", async () => {
+    const codeTrace = (code: string) => `# ✗ an account can be deleted
+
+**${code}**
+
+\`\`\`text
+agent.act failed
+could not finish: Open the settings, profile or account screen.
+\`\`\`
+
+## Steps
+
+1. ✗ \`agent.act\` "Open the settings screen" (9.0s, 3 model calls) — **${code}** — \`checks/R6.e2e.ts:12\`
+`;
+    const codes = ["TEST_TIMEOUT", "STEP_TIMEOUT", "STEP_BUDGET_EXHAUSTED", "AUTOMATION_UNSUPPORTED", "ACTION_FAILED"];
+    const rules = ["R1", "R2", "R3", "R4", "R5"] as const;
+    const calls: Call[] = [];
+    const spawn = fakeSpawn(Object.fromEntries(rules.map((r, i) => [r, { code: 1, trace: codeTrace(codes[i]) }])), calls);
+    const results = await runChecks("https://app.test", dir, [...rules], { spawn, cwd: dir });
+    for (const r of results) {
+      expect(r).toMatchObject({
+        outcome: "not_checked",
+        reason: "The check ran out of time or could not use the screen before it reached a result.",
+      });
+    }
+    expect(calls).toHaveLength(rules.length * 2);
+  });
+
   it("stops a check that runs too long and still runs the next one", async () => {
     const spawn = fakeSpawn({ R1: { code: null }, R2: { code: 0 } }, []);
     const results = await runChecks("https://app.test", dir, ["R1", "R2"], { spawn, cwd: dir, timeoutMs: 50 });

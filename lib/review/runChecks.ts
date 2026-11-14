@@ -11,6 +11,9 @@ export const NOT_CHECKED_FILE = "not_checked.txt";
 const RETRY_WORTHWHILE = /timeout|timed out|ran out of time|did not finish|could not tell|not clear|could not run|ENGINE_FAILURE|^MODEL_/i;
 /** e2e's reasons for a model that did not answer usefully, e.g. MODEL_OUTPUT_INVALID, MODEL_REFUSED, MODEL_RATE_LIMITED. */
 const MODEL_FAILURE = /^MODEL_[A-Z_]*\b/;
+/** e2e's reasons for a check that ran out of time or steps, or could not use the screen (e.g. a covered button). */
+const NO_RESULT = /^(?:TEST_TIMEOUT|STEP_TIMEOUT|STEP_BUDGET_EXHAUSTED|AUTOMATION_UNSUPPORTED|ACTION_FAILED)\b/;
+export const NO_RESULT_REASON = "The check ran out of time or could not use the screen before it reached a result.";
 export const MODEL_REASON = "The check could not run because the AI model did not answer usefully.";
 
 type SpawnFn = (command: string, args: string[], options: SpawnOptions) => ChildProcess;
@@ -181,9 +184,9 @@ async function runOne(
     if (outcome === "fail" && /^ASSERTION_INCONCLUSIVE\b/.test(reason)) {
       outcome = "not_checked";
       reason = `The check could not tell: ${reason.replace(/^ASSERTION_INCONCLUSIVE:\s*/, "")}`;
-    } else if (outcome === "fail" && /^(?:TEST|STEP)_TIMEOUT\b/.test(reason)) {
+    } else if (outcome === "fail" && NO_RESULT.test(reason)) {
       outcome = "not_checked";
-      reason = "The check ran out of time before it reached a result.";
+      reason = NO_RESULT_REASON;
     } else if (outcome === "fail" && MODEL_FAILURE.test(reason)) {
       outcome = "not_checked";
       reason = MODEL_REASON;
