@@ -2,6 +2,10 @@
 
 import { useState, type FormEvent } from "react";
 import type { Run } from "@/lib/types";
+// Relative so the tests can load this component without the "@/" alias.
+import { eligibleForFix } from "../lib/fix/status";
+
+export const NOTHING_TO_FIX = "Nothing here would likely get this app rejected.";
 
 const BUSY_LABEL: Partial<Record<Run["stage"], string>> = {
   scanning: "Scanning your app…",
@@ -28,8 +32,9 @@ export default function MainAction({ run, onUpdate }: { run: Run; onUpdate: (run
   const [askRepo, setAskRepo] = useState(false);
   const [repoUrl, setRepoUrl] = useState("");
 
+  const canFix = run.findings.some(eligibleForFix);
   const action =
-    run.stage === "reviewed"
+    run.stage === "reviewed" && canFix
       ? { label: "Fix these for me", path: "fix", busy: "Starting Devin…" }
       : run.stage === "fixed"
         ? { label: "Check again", path: "recheck", busy: "Starting the re-check…" }
@@ -37,6 +42,11 @@ export default function MainAction({ run, onUpdate }: { run: Run; onUpdate: (run
   const busyLabel = BUSY_LABEL[run.stage];
   const needsRepo = run.stage === "reviewed" && !run.repoUrl;
 
+  if (run.stage === "reviewed" && !canFix) {
+    // Findings that failed or are a risk but cannot be fixed still need the person's attention.
+    const atRisk = run.findings.some((f) => f.state === "fail" || f.state === "risk");
+    return atRisk ? null : <p className="main-action muted">{NOTHING_TO_FIX}</p>;
+  }
   if (!action && !busyLabel) return null;
 
   async function send(request: () => Promise<Run>) {
