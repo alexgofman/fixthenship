@@ -7,7 +7,7 @@ export type DecoderEntry = {
   plain: string;
   usuallyMeans: string;
   whatToDo: string;
-  /** The rule id of our check for this guideline, such as "R6", or "" when we have none. */
+  /** The rule ids of our checks for this guideline, comma-separated ("R6" or "R1, R2"), or "" when we have none. */
   ourCheck: string;
 };
 
@@ -37,6 +37,14 @@ export function findGuidelines(text: string): string[] {
     }
   }
   return found;
+}
+
+/** The rule ids named in `ourCheck`, in order; none when the entry has no check. */
+export function ourChecks(entry: Pick<DecoderEntry, "ourCheck">): string[] {
+  return entry.ourCheck
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean);
 }
 
 /** 5.1.1(v) → 5.1.1 → 5.1; a two-part number has no parent. */

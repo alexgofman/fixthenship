@@ -1,6 +1,6 @@
-import type { CSSProperties } from "react";
-import { decode, findGuidelines, type Decoded } from "../lib/decoder";
-import type { Run } from "../lib/types";
+import { Fragment, type CSSProperties } from "react";
+import { decode, findGuidelines, ourChecks, type Decoded } from "../lib/decoder";
+import type { Finding, Run } from "../lib/types";
 import { displayFor } from "./findingDisplay";
 
 export const NO_GUIDELINE_LINE = "We could not find a guideline number in the message you pasted.";
@@ -28,12 +28,21 @@ const MESSAGE: CSSProperties = {
 };
 
 function OurCheck({ entry, run }: { entry: Decoded; run: Run }) {
-  if (!entry.ourCheck) return <p className="finding-detail" style={{ marginTop: 10 }}>{NO_CHECK_LINE}</p>;
-  const finding = run.findings.find((f) => f.ruleId === entry.ourCheck);
-  if (!finding) return <p className="finding-detail" style={{ marginTop: 10 }}>{CHECK_RUNNING_LINE}</p>;
+  const ids = ourChecks(entry);
+  if (ids.length === 0) return <p className="finding-detail" style={{ marginTop: 10 }}>{NO_CHECK_LINE}</p>;
+  const found = ids
+    .map((id) => run.findings.find((f) => f.ruleId === id))
+    .filter((f): f is Finding => f !== undefined);
+  if (found.length === 0) return <p className="finding-detail" style={{ marginTop: 10 }}>{CHECK_RUNNING_LINE}</p>;
   return (
     <p className="finding-detail" style={{ marginTop: 10 }}>
-      Our check for this: <a href={`#finding-${finding.ruleId}`}>{displayFor(finding).label}</a>
+      {ids.length === 1 ? "Our check for this:" : "Our checks for this:"}{" "}
+      {found.map((f, i) => (
+        <Fragment key={f.ruleId}>
+          {i > 0 && "; "}
+          {f.title}: <a href={`#finding-${f.ruleId}`}>{displayFor(f).label}</a>
+        </Fragment>
+      ))}
     </p>
   );
 }

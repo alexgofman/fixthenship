@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import entries from "../lib/content/decoder.json" with { type: "json" };
-import { cleanRejectionText, decode, findGuidelines, REJECTION_TEXT_MAX } from "../lib/decoder";
+import { cleanRejectionText, decode, findGuidelines, ourChecks, REJECTION_TEXT_MAX } from "../lib/decoder";
 
 const CRASH = `Hello,
 
@@ -105,6 +105,15 @@ describe("decode", () => {
 
   it("knows every entry in the data file", () => {
     for (const e of entries) expect(decode(e.guideline)).toMatchObject({ ...e, fellBack: false });
+  });
+});
+
+describe("ourChecks", () => {
+  it("splits and trims the named rules", () => {
+    expect(ourChecks({ ourCheck: "R6" })).toEqual(["R6"]);
+    expect(ourChecks({ ourCheck: "R1, R2,R3 ,  R4" })).toEqual(["R1", "R2", "R3", "R4"]);
+    expect(ourChecks({ ourCheck: "" })).toEqual([]);
+    expect(ourChecks(decode("2.1")!)).toEqual(["R1", "R2", "R3", "R4"]);
   });
 });
 

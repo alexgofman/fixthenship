@@ -34,6 +34,16 @@ describe("export-run: Apple's message", () => {
     expect(text(rejectionDecoderHtml(none))).toBe(text(renderToStaticMarkup(createElement(RejectionDecoder, { run: none }))));
   });
 
+  it("lists several checks the same way as the run page", async () => {
+    const example = await loadExampleRun();
+    const run = { ...example, rejectionText: "Guideline 2.1 - Performance\n\nGuideline 5.1.1 - Legal" };
+    const box = rejectionDecoderHtml(run);
+    expect(box).toContain("Our checks for this:");
+    expect(text(box)).toBe(text(renderToStaticMarkup(createElement(RejectionDecoder, { run }))));
+    const none = { ...run, findings: [] };
+    expect(rejectionDecoderHtml(none)).toContain("Our check for this is still running");
+  });
+
   it("adds nothing when no message was pasted", async () => {
     expect(rejectionDecoderHtml(await loadExampleRun())).toBe("");
   });

@@ -44,7 +44,7 @@ describe("RejectionDecoder", () => {
     expect(html).toContain("In plain words");
     expect(html).toContain("What the reviewer most often saw");
     expect(html).toContain("What to do first");
-    expect(html).toContain('Our check for this: <a href="#finding-R6">Likely rejection</a>');
+    expect(html).toContain('Our check for this: Title R6: <a href="#finding-R6">Likely rejection</a>');
     expect(html).toContain(CHECK_RUNNING_LINE);
     expect(html).toContain(NO_CHECK_LINE);
     expect(html).toContain("We do not have a plain explanation for guideline 2.5.2 yet.");
@@ -62,6 +62,32 @@ describe("RejectionDecoder", () => {
       { ...finding("R6", "fail", "partly"), finalState: "green" },
     ]);
     expect(html).toContain('<a href="#finding-R6">Fixed and verified</a>');
+  });
+
+  it("lists the state of each named check that has a finding, and only those", () => {
+    const html = render("Guideline 2.1 - Performance - App Completeness", [
+      { ...finding("R1", "pass", "no"), title: "The app loads without errors" },
+      { ...finding("R2", "fail", "yes"), title: "No placeholder content" },
+      { ...finding("R4", "risk", "partly"), title: "A reviewer can sign in" },
+    ]);
+    expect(html).toContain(
+      "Our checks for this: The app loads without errors: " +
+        '<a href="#finding-R1">Passed</a>; No placeholder content: <a href="#finding-R2">Likely rejection</a>; ' +
+        'A reviewer can sign in: <a href="#finding-R4">Risk</a></p>',
+    );
+    expect(html).not.toContain("#finding-R3");
+  });
+
+  it("says the checks are still running when none of the named rules has a finding", () => {
+    const html = render("Guideline 2.1 - Performance - App Completeness", [finding("R6", "fail", "yes")]);
+    expect(html).toContain(CHECK_RUNNING_LINE);
+    expect(html).not.toContain("#finding-");
+  });
+
+  it("says there is no check when the entry names no rule", () => {
+    const html = render("Guideline 1.2 - Safety - User-Generated Content", [finding("R1", "fail", "yes")]);
+    expect(html).toContain(NO_CHECK_LINE);
+    expect(html).not.toContain("#finding-");
   });
 
   it("says when it explains the parent of the named guideline", () => {

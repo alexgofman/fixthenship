@@ -35,7 +35,7 @@ const {
 } = await import("../components/findingDisplay.ts");
 const { RULES } = await import("../lib/rules.ts");
 const { FIX_STATUS_WORDS, PLAIN_WORDS } = await import("../lib/plainWords.ts");
-const { decode, findGuidelines } = await import("../lib/decoder.ts");
+const { decode, findGuidelines, ourChecks } = await import("../lib/decoder.ts");
 process.emitWarning = emitWarning;
 const CHECKLIST = JSON.parse(await readFile(path.join(ROOT, "lib", "content", "checklist.json"), "utf8")).groups;
 
@@ -246,10 +246,12 @@ export function rejectionDecoderHtml(run) {
   const row = (term, text) => `<div><dt>${esc(term)}</dt><dd>${esc(text)}</dd></div>`;
   const line = (html) => `<p class="finding-detail" style="margin-top:10px">${html}</p>`;
   const ourCheck = (entry) => {
-    if (!entry.ourCheck) return line("We have no automatic check for this one yet. Use the steps above.");
-    const f = run.findings.find((x) => x.ruleId === entry.ourCheck);
-    if (!f) return line("Our check for this is still running");
-    return line(`Our check for this: <a href="#finding-${esc(f.ruleId)}">${esc(displayFor(f).label)}</a>`);
+    const ids = ourChecks(entry);
+    if (ids.length === 0) return line("We have no automatic check for this one yet. Use the steps above.");
+    const found = ids.map((id) => run.findings.find((x) => x.ruleId === id)).filter(Boolean);
+    if (found.length === 0) return line("Our check for this is still running");
+    const states = found.map((f) => `${esc(f.title)}: <a href="#finding-${esc(f.ruleId)}">${esc(displayFor(f).label)}</a>`);
+    return line(`${ids.length === 1 ? "Our check for this:" : "Our checks for this:"} ${states.join("; ")}`);
   };
   const cards = numbers
     .map((n) => {
