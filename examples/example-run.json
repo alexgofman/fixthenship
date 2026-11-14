@@ -1,0 +1,162 @@
+{
+  "id": "example",
+  "createdAt": "2026-11-01T09:00:00.000Z",
+  "repoUrl": "https://github.com/example/habit-tracker",
+  "appUrl": "https://habit-tracker.example.com",
+  "stage": "done",
+  "findings": [
+    {
+      "ruleId": "R1",
+      "guideline": "2.1(a)",
+      "title": "The app loads without errors",
+      "detail": "The home screen loaded in 1.8 seconds with no console errors.",
+      "source": "app",
+      "evidence": [
+        { "kind": "screenshot", "path": "screenshots/r1-home.png", "caption": "Home screen after first load" }
+      ],
+      "confidence": "high",
+      "state": "pass",
+      "fixable": "partly",
+      "finalState": "green",
+      "humanStep": ""
+    },
+    {
+      "ruleId": "R2",
+      "guideline": "2.1(a)",
+      "title": "No placeholder content",
+      "detail": "The pricing screen still shows \"Lorem ipsum\" text and a stock placeholder image.",
+      "source": "both",
+      "evidence": [
+        { "kind": "code", "file": "src/pages/Pricing.tsx", "line": 42, "caption": "Lorem ipsum in the plan description" },
+        { "kind": "screenshot", "path": "screenshots/r2-pricing.png", "caption": "Pricing screen with placeholder text" }
+      ],
+      "confidence": "high",
+      "state": "fail",
+      "fixable": "yes",
+      "finalState": "green",
+      "humanStep": ""
+    },
+    {
+      "ruleId": "R5",
+      "guideline": "5.1.1(i)",
+      "title": "A privacy policy is reachable in the app",
+      "detail": "No link to a privacy policy was found in settings, the footer or the sign-up screen.",
+      "source": "both",
+      "evidence": [
+        { "kind": "screenshot", "path": "screenshots/r5-settings.png", "caption": "Settings screen without a privacy link" }
+      ],
+      "confidence": "high",
+      "state": "fail",
+      "fixable": "yes",
+      "finalState": "green",
+      "humanStep": ""
+    },
+    {
+      "ruleId": "R6",
+      "guideline": "5.1.1(v)",
+      "title": "An account can be deleted in the app",
+      "detail": "Users can create an account but there is no way to delete it from inside the app.",
+      "source": "code",
+      "evidence": [
+        { "kind": "code", "file": "src/pages/Account.tsx", "line": 18, "caption": "Account screen only offers sign out" }
+      ],
+      "confidence": "high",
+      "state": "fail",
+      "fixable": "yes",
+      "finalState": "amber",
+      "humanStep": "Confirm that deleting an account also removes the user's data from your backend, not only the login."
+    },
+    {
+      "ruleId": "R7",
+      "guideline": "4.8",
+      "title": "Third-party login comes with an Apple option",
+      "detail": "The app offers Google sign-in but no Sign in with Apple or equivalent option.",
+      "source": "both",
+      "evidence": [
+        { "kind": "code", "file": "src/auth/providers.ts", "line": 7, "caption": "Only the Google provider is configured" },
+        { "kind": "log", "path": "logs/r7-recheck.txt", "caption": "Re-check: Apple button renders but sign-in fails" }
+      ],
+      "confidence": "medium",
+      "state": "fail",
+      "fixable": "partly",
+      "finalState": "red",
+      "humanStep": "Create a Services ID and key for Sign in with Apple in your Apple Developer account, then add them to the auth settings."
+    },
+    {
+      "ruleId": "R10",
+      "guideline": "4.2.6",
+      "title": "No app-builder badge or default branding",
+      "detail": "A \"Made with an app builder\" badge is shown in the bottom corner and the tab title is the template default.",
+      "source": "both",
+      "evidence": [
+        { "kind": "code", "file": "index.html", "line": 9, "caption": "Default template title" },
+        { "kind": "screenshot", "path": "screenshots/r10-badge.png", "caption": "Builder badge on every screen" }
+      ],
+      "confidence": "high",
+      "state": "fail",
+      "fixable": "yes",
+      "finalState": "green",
+      "humanStep": ""
+    },
+    {
+      "ruleId": "R11",
+      "guideline": "5.1.2(i)",
+      "title": "No tracking or third-party AI calls before consent",
+      "detail": "Network traffic before consent could not be captured, so this rule was not checked.",
+      "source": "app",
+      "evidence": [
+        { "kind": "log", "path": "logs/r11-network.txt", "caption": "Network capture timed out" }
+      ],
+      "confidence": "low",
+      "state": "not_checked",
+      "fixable": "partly",
+      "finalState": "",
+      "humanStep": ""
+    },
+    {
+      "ruleId": "R13",
+      "guideline": "4.2",
+      "title": "\"Just a website\" risk",
+      "detail": "The app is a thin wrapper around the website with no native features, which is a likely rejection risk.",
+      "source": "both",
+      "evidence": [
+        { "kind": "code", "file": "capacitor.config.ts", "line": 5, "caption": "App only loads the remote website URL" }
+      ],
+      "confidence": "medium",
+      "state": "risk",
+      "fixable": "no",
+      "finalState": "amber",
+      "humanStep": "Consider adding features that work best as an app, such as offline habits, reminders or widgets."
+    }
+  ],
+  "fixes": [
+    {
+      "ruleId": "R2",
+      "sessionId": "devin-example-r2",
+      "url": "https://app.devin.ai/sessions/example-r2",
+      "status": "finished",
+      "prUrl": "https://github.com/example/habit-tracker/pull/12",
+      "summary": "Replaced placeholder pricing copy and image.",
+      "acus": 1.5
+    },
+    {
+      "ruleId": "R6",
+      "sessionId": "devin-example-r6",
+      "url": "https://app.devin.ai/sessions/example-r6",
+      "status": "finished",
+      "prUrl": "https://github.com/example/habit-tracker/pull/13",
+      "summary": "Added a Delete account button with confirmation to the account screen.",
+      "acus": 2.25
+    },
+    {
+      "ruleId": "R7",
+      "sessionId": "devin-example-r7",
+      "url": "https://app.devin.ai/sessions/example-r7",
+      "status": "waiting",
+      "prUrl": "",
+      "summary": "Added the Apple provider; needs Apple Developer credentials to finish.",
+      "acus": 1
+    }
+  ],
+  "error": ""
+}
