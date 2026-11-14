@@ -114,18 +114,17 @@ function resultOf(f: Finding): CheckResult {
  */
 export async function addRepo(runId: string, repoUrl: string, overrides: Partial<ReviewDeps> = {}): Promise<Run> {
   const deps = { ...defaultDeps, ...overrides };
-  const run = await loadRun(runId);
-  run.repoUrl = repoUrl;
-  await saveRun(run);
-
+  await loadRun(runId);
   let findings = await scanCode(repoUrl, path.join(runsDir(), runId), deps);
+  // Saved only once the scan works, so a wrong address can be corrected and tried again.
+  const run = await loadRun(runId);
   for (const f of run.findings) {
     findings = f.source === "code" ? findings : applyCheckResult(findings, resultOf(f), f.evidence);
   }
-  const latest = await loadRun(runId);
-  latest.findings = findings.sort(byRule);
-  await saveRun(latest);
-  return latest;
+  run.repoUrl = repoUrl;
+  run.findings = findings.sort(byRule);
+  await saveRun(run);
+  return run;
 }
 
 export async function reviewApp(runId: string, overrides: Partial<ReviewDeps> = {}): Promise<void> {
