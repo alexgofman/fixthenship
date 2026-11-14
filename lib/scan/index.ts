@@ -4,13 +4,17 @@ import { readSourceFiles } from "./files";
 import { accountDeletion } from "./rules/account-deletion";
 import { appleLogin } from "./rules/apple-login";
 import { builderBranding } from "./rules/builder-branding";
+import { deadButtons } from "./rules/dead-controls";
 import { outsideCheckout } from "./rules/outside-checkout";
 import { placeholderContent } from "./rules/placeholder-content";
 import { privacyPolicy } from "./rules/privacy-policy";
+import { reviewerAccess } from "./rules/reviewer-access";
 import { supportPage } from "./rules/support-page";
 
 const CHECKS: RuleCheck[] = [
   placeholderContent,
+  deadButtons,
+  reviewerAccess,
   privacyPolicy,
   accountDeletion,
   appleLogin,
