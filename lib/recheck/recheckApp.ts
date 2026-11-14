@@ -6,16 +6,17 @@ import {
   type SpawnOptions,
 } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { access, lstat, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { access, lstat, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { baseBranch } from "../fix/brief";
+import { pollFixes } from "../fix/pollFixes";
 import { errorMessage } from "../fix/status";
 import { REVIEW_RULES } from "../review/pipeline";
 import { runChecks, type RunChecksOptions } from "../review/runChecks";
 import { scanRepo } from "../scan";
-import { loadRun, runsDir, saveRun } from "../store";
+import { loadRun, runsDir, updateRun } from "../store";
 import type { CheckResult, Evidence, Finding, RuleId, Run } from "../types";
 import { OTHER_REPO_STEP, mergeFixes, type MergeResult } from "./mergeFixes";
 
@@ -42,6 +43,8 @@ type SpawnFn = (command: string, args: string[], options: SpawnOptions) => Child
 type ExecFn = (file: string, args: string[], options: ExecFileOptions) => Promise<unknown>;
 
 export type RecheckDeps = {
+  /** Refreshes the fix sessions, so a pull request opened after the stage moved on is still merged. */
+  pollFixes: (runId: string) => Promise<unknown>;
   mergeFixes: (runId: string) => Promise<MergeResult>;
   clone: (repoUrl: string, branch: string, dest: string) => Promise<void>;
   /** Runs a command to completion (npm install). */
@@ -91,6 +94,7 @@ async function isUp(url: string): Promise<boolean> {
 }
 
 const defaultDeps: RecheckDeps = {
+  pollFixes: (runId) => pollFixes(runId),
   mergeFixes: (runId) => mergeFixes(runId),
   clone: gitClone,
   execFile: (file, args, options) => execFileAsync(file, args, options),
@@ -168,11 +172,29 @@ function exited(child: ChildProcess): boolean {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** The process group of the app on port 4010, so one left behind by a server restart can be stopped. */
+function pidFile(): string {
+  return path.join(runsDir(), "recheck-app.pid");
+}
+
+async function stopLeftOverApp(deps: RecheckDeps): Promise<void> {
+  const pid = Number((await readFile(pidFile(), "utf8").catch(() => "")).trim());
+  if (!Number.isInteger(pid) || pid <= 0) return;
+  try {
+    deps.kill(-pid, "SIGKILL");
+  } catch {
+    // The group is already gone.
+  }
+  await sleep(deps.pollMs);
+  await rm(pidFile(), { force: true });
+}
+
 /**
  * Starts `npm run dev -- --port 4010`; if that exits before answering, starts `npm run dev` with PORT=4010.
  * Every started child is recorded in `app` so stopApp can kill it, also when this throws.
  */
 async function startApp(dir: string, env: NodeJS.ProcessEnv, deps: RecheckDeps, app: StartedApp): Promise<void> {
+  await stopLeftOverApp(deps);
   if (await deps.isUp(RECHECK_URL)) throw new Error(`Something else is already answering on port ${RECHECK_PORT}`);
 
   const deadline = Date.now() + deps.startTimeoutMs;
@@ -186,6 +208,7 @@ async function startApp(dir: string, env: NodeJS.ProcessEnv, deps: RecheckDeps, 
     let spawnError = "";
     const child = deps.spawn("npm", args, { cwd: dir, env, detached: true, stdio: ["ignore", "pipe", "pipe"] });
     app.children.push(child);
+    if (child.pid) await mkdir(runsDir(), { recursive: true }).then(() => writeFile(pidFile(), String(child.pid), "utf8"));
     const append = (chunk: Buffer | string) => {
       output = (output + chunk.toString()).slice(-20_000);
     };
@@ -235,6 +258,7 @@ async function stopChild(child: ChildProcess, deps: RecheckDeps): Promise<void> 
 
 async function stopApp(app: StartedApp, deps: RecheckDeps): Promise<void> {
   for (const child of app.children) await stopChild(child, deps);
+  if (app.children.length) await rm(pidFile(), { force: true }).catch(() => {});
 }
 
 async function exists(file: string): Promise<boolean> {
@@ -273,6 +297,10 @@ function scanFinds(scan: Finding[], ruleId: RuleId): boolean {
 type Outcome = { scan: Finding[]; checks: CheckResult[]; evidence: Map<RuleId, Evidence[]>; merged: RuleId[] };
 
 export const NOT_MERGED = "No fix was merged for this finding, so it is not counted as fixed.";
+export const STILL_FAILS = "After the fixes, our check still fails on the fixed app; see the after-the-fix steps below.";
+export const SCAN_STILL_FINDS = "After the fixes, the code scan still finds this in the fixed code; see the after-the-fix code evidence below.";
+export const NOTHING_RECHECKS = "Nothing we run can re-check this on the fixed app, so it is not counted as fixed; check it by hand.";
+const CONFIRM_BY_HAND = "We could not confirm this in the app";
 export const BROKE_BY_FIXES = "This passed before the fixes and fails after them:";
 const COULD_NOT_RECHECK = "We could not re-check this:";
 
@@ -290,41 +318,58 @@ export function couldNotRecheckStep(reason: string): string {
   return `${COULD_NOT_RECHECK} ${clause(reason)}. Press Check again.`;
 }
 
+export function confirmByHandStep(reason: string): string {
+  return `${CONFIRM_BY_HAND} (${withoutStop(reason)}): check it by hand.`;
+}
+
+export function branchMissingStep(branch: string): string {
+  return `${COULD_NOT_RECHECK} the branch ${branch} that should hold the merged fixes is not in the repository. Merge the fixes into it, then press Check again.`;
+}
+
 export function didNotStartStep(reason: string): string {
   return `${COULD_NOT_RECHECK} the fixed app did not start (${withoutStop(reason)}). Press Check again.`;
 }
 
 /**
  * The final state of one finding that failed the first review. It can only end green (or NEVER_GREEN amber)
- * when its fix was merged. A rule with an app check needs that check to pass; a finding the code scan made
- * needs the scan to no longer find it. A check that could not run ends amber; a finding nothing could look at stays red.
+ * when its fix was merged and its app check passed (or, with no app check, the scan no longer finds it).
+ * Red always says why in the detail. A check that could not run ends amber, never red or green.
  */
 export function finalFor(finding: Finding, outcome: Outcome): Pick<Finding, "finalState" | "humanStep" | "detail"> {
-  const red = (detail = finding.detail) => ({ finalState: "red" as const, humanStep: finding.humanStep, detail });
-  if (!outcome.merged.includes(finding.ruleId)) return red(`${finding.detail} ${NOT_MERGED}`);
+  const red = (reason: string) => ({ finalState: "red" as const, humanStep: finding.humanStep, detail: `${finding.detail} ${reason}` });
+  const amber = (humanStep: string) => ({ finalState: "amber" as const, humanStep, detail: finding.detail });
+  if (!outcome.merged.includes(finding.ruleId)) return red(NOT_MERGED);
   const check = outcome.checks.find((c) => c.ruleId === finding.ruleId);
   const hasCheck = REVIEW_RULES.includes(finding.ruleId);
-  const looked = hasCheck || finding.source !== "app";
+  if (!hasCheck && finding.source === "app") return red(NOTHING_RECHECKS);
+  if (hasCheck && check?.outcome === "fail") return red(STILL_FAILS);
   // A NEVER_GREEN rule's fix can leave its words in the code on purpose (R8 keeps the web checkout): its app check decides alone.
   const scanBlocks = !(hasCheck && NEVER_GREEN[finding.ruleId]) && scanFinds(outcome.scan, finding.ruleId);
-  if (!looked || scanBlocks || (hasCheck && check?.outcome === "fail")) return red();
+  if (scanBlocks) return red(SCAN_STILL_FINDS);
   if (hasCheck && check?.outcome !== "pass") {
     const reason = check?.reason ?? "the check did not report a result";
-    return { finalState: "amber", humanStep: couldNotRecheckStep(reason), detail: finding.detail };
+    // The app check never confirmed a finding the scan made, and the scan is now clean.
+    return amber(finding.source === "code" ? confirmByHandStep(reason) : couldNotRecheckStep(reason));
   }
   const step = NEVER_GREEN[finding.ruleId];
-  return step
-    ? { finalState: "amber", humanStep: step, detail: finding.detail }
-    : { finalState: "green", humanStep: "", detail: finding.detail };
+  return step ? amber(step) : { finalState: "green", humanStep: "", detail: finding.detail };
 }
 
 function isUnfixedFailure(f: Finding): boolean {
   return f.state === "fail" && f.finalState !== "amber";
 }
 
+function withoutAfterEvidence(f: Finding): Evidence[] {
+  return f.evidence.filter((e) => !e.caption.startsWith(AFTER_PREFIX));
+}
+
+/** The re-check's screenshot and trace, and where the scan of the fixed code still finds the rule. */
 function withAfterEvidence(f: Finding, outcome: Outcome): Evidence[] {
-  const extra = outcome.evidence.get(f.ruleId) ?? [];
-  return [...f.evidence.filter((e) => !e.caption.startsWith(AFTER_PREFIX)), ...extra];
+  const scanned = outcome.scan
+    .filter((s) => s.ruleId === f.ruleId && (s.state === "fail" || s.state === "risk"))
+    .flatMap((s) => s.evidence)
+    .map((e) => ({ ...e, caption: `${AFTER_PREFIX} ${e.caption}` }));
+  return [...withoutAfterEvidence(f), ...(outcome.evidence.get(f.ruleId) ?? []), ...scanned];
 }
 
 function applyOutcome(run: Run, outcome: Outcome): void {
@@ -334,7 +379,7 @@ function applyOutcome(run: Run, outcome: Outcome): void {
       const check = outcome.checks.find((c) => c.ruleId === f.ruleId);
       if (check?.outcome !== "fail") return f;
       const detail = `${f.detail} ${BROKE_BY_FIXES} ${check.reason}`;
-      return { ...f, evidence: withAfterEvidence(f, outcome), finalState: "red", detail };
+      return { ...f, evidence: [...withoutAfterEvidence(f), ...(outcome.evidence.get(f.ruleId) ?? [])], finalState: "red", detail };
     }
     if (f.state !== "fail") return f;
     const evidence = withAfterEvidence(f, outcome);
@@ -367,30 +412,66 @@ function cutAt(detail: string, markers: string[]): string {
   return detail;
 }
 
+const WAITING_STEP = /^Devin asked a question\b/;
+
+function isRecheckStep(step: string): boolean {
+  return (
+    RECHECK_STEP.test(step) ||
+    WAITING_STEP.test(step) ||
+    step === OTHER_REPO_STEP ||
+    step.startsWith(COULD_NOT_RECHECK) ||
+    step.startsWith(CONFIRM_BY_HAND) ||
+    Object.values(NEVER_GREEN).includes(step)
+  );
+}
+
+type FirstSteps = Partial<Record<RuleId, string>>;
+
+function firstStepsFile(runId: string): string {
+  return path.join(runsDir(), runId, "first-review-steps.json");
+}
+
+/**
+ * Each finding's next step from the first review, saved before the first re-check overwrites it,
+ * so a later re-check can put it back.
+ */
+async function firstReviewSteps(run: Run): Promise<FirstSteps> {
+  const file = firstStepsFile(run.id);
+  try {
+    return JSON.parse(await readFile(file, "utf8")) as FirstSteps;
+  } catch {
+    const steps: FirstSteps = {};
+    for (const f of run.findings) steps[f.ruleId] = isRecheckStep(f.humanStep) ? "" : f.humanStep;
+    await mkdir(path.dirname(file), { recursive: true });
+    await writeFile(file, JSON.stringify(steps, null, 2), "utf8");
+    return steps;
+  }
+}
+
 /** Clears what an earlier re-check wrote, so running it again starts from the first review. */
-function resetRecheck(run: Run): void {
+function resetRecheck(run: Run, firstSteps: FirstSteps): void {
   run.findings = run.findings.map((f) => {
     if (f.state === "pass") {
       if (f.finalState !== "red") return f;
-      return {
-        ...f,
-        finalState: "",
-        detail: cutAt(f.detail, [BROKE_BY_FIXES]),
-        evidence: f.evidence.filter((e) => !e.caption.startsWith(AFTER_PREFIX)),
-      };
+      return { ...f, finalState: "", detail: cutAt(f.detail, [BROKE_BY_FIXES]), evidence: withoutAfterEvidence(f) };
     }
     if (f.state !== "fail") return f;
-    const ours =
-      RECHECK_STEP.test(f.humanStep) ||
-      f.humanStep === OTHER_REPO_STEP ||
-      f.humanStep.startsWith(COULD_NOT_RECHECK) ||
-      Object.values(NEVER_GREEN).includes(f.humanStep);
-    const detail = cutAt(f.detail, [START_FAILED, NOT_FINISHED, NOT_MERGED]);
-    return { ...f, detail, finalState: "", humanStep: ours ? "" : f.humanStep };
+    const detail = cutAt(f.detail, [START_FAILED, NOT_FINISHED, NOT_MERGED, STILL_FAILS, SCAN_STILL_FINDS, NOTHING_RECHECKS]);
+    const humanStep = firstSteps[f.ruleId] ?? (isRecheckStep(f.humanStep) ? "" : f.humanStep);
+    return { ...f, detail, finalState: "", humanStep, evidence: withoutAfterEvidence(f) };
   });
 }
 
 class StartError extends Error {}
+
+/** Thrown when the run's branch is not in the repository, so there is nothing to clone. */
+class BranchMissingError extends Error {
+  constructor(readonly branch: string) {
+    super(`Branch ${branch} not found`);
+  }
+}
+
+const BRANCH_NOT_FOUND = /Remote branch \S+ not found|couldn't find remote ref/i;
 
 let portLock: Promise<unknown> = Promise.resolve();
 
@@ -416,11 +497,11 @@ export async function recheckApp(runId: string, overrides: Partial<RecheckDeps> 
   const repoDir = path.join(runDir, "recheck-repo");
 
   try {
-    const run = await loadRun(runId);
-    run.stage = "rechecking";
-    run.error = "";
-    resetRecheck(run);
-    await saveRun(run);
+    await updateRun(runId, async (run) => {
+      run.stage = "rechecking";
+      run.error = "";
+      resetRecheck(run, await firstReviewSteps(run));
+    });
   } catch (err) {
     console.error(`recheck ${runId}: ${errorMessage(err)}`);
     return;
@@ -430,6 +511,11 @@ export async function recheckApp(runId: string, overrides: Partial<RecheckDeps> 
   let merged: RuleId[] | null = null;
   let failureStep = "";
   try {
+    await deps.pollFixes(runId);
+  } catch (err) {
+    console.error(`recheck ${runId}: could not refresh the fix sessions: ${errorMessage(err)}`);
+  }
+  try {
     merged = (await deps.mergeFixes(runId)).merged;
     const mergedRules = merged;
     outcome = await withPort(async () => {
@@ -438,13 +524,15 @@ export async function recheckApp(runId: string, overrides: Partial<RecheckDeps> 
       try {
         const run = await loadRun(runId);
         try {
-          await deps.clone(run.repoUrl, baseBranch(run), repoDir);
+          await deps.clone(run.repoUrl, baseBranch(run), repoDir).catch((err) => {
+            throw BRANCH_NOT_FOUND.test(errorMessage(err)) ? new BranchMissingError(baseBranch(run)) : err;
+          });
           home = await mkdtemp(path.join(os.tmpdir(), "fts-recheck-home-"));
           const env = await appEnv(repoDir, home);
           await npmInstall(deps.execFile, repoDir, env);
           await startApp(repoDir, env, deps, app);
         } catch (err) {
-          throw new StartError(errorMessage(err));
+          throw err instanceof BranchMissingError ? err : new StartError(errorMessage(err));
         }
         const scan = await deps.scan(repoDir);
         const checks = await deps.runChecks(RECHECK_URL, outDir, REVIEW_RULES, {
@@ -459,16 +547,21 @@ export async function recheckApp(runId: string, overrides: Partial<RecheckDeps> 
       }
     });
   } catch (err) {
-    failureStep = err instanceof StartError ? didNotStartStep(err.message) : couldNotRecheckStep(errorMessage(err));
+    failureStep =
+      err instanceof BranchMissingError
+        ? branchMissingStep(err.branch)
+        : err instanceof StartError
+          ? didNotStartStep(err.message)
+          : couldNotRecheckStep(errorMessage(err));
     console.error(`recheck ${runId}: ${failureStep}`);
   }
 
   try {
-    const latest = await loadRun(runId);
-    if (outcome) applyOutcome(latest, outcome);
-    else markNotRechecked(latest, failureStep, merged);
-    latest.stage = "done";
-    await saveRun(latest);
+    await updateRun(runId, (latest) => {
+      if (outcome) applyOutcome(latest, outcome);
+      else markNotRechecked(latest, failureStep, merged);
+      latest.stage = "done";
+    });
   } catch (err) {
     console.error(`recheck ${runId}: could not save the result: ${errorMessage(err)}`);
   }

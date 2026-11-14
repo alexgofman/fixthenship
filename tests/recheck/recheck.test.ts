@@ -1,6 +1,6 @@
 import type { ChildProcess, ExecFileOptions, SpawnOptions } from "node:child_process";
 import { EventEmitter } from "node:events";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { PassThrough } from "node:stream";
@@ -125,6 +125,7 @@ function harness({ crashOnStart = false } = {}): Harness {
   const kills: [number, string][] = [];
   let up = false;
   const deps: Partial<RecheckDeps> = {
+    pollFixes: async () => {},
     mergeFixes: async () => ({ merged: [], skipped: [] }),
     clone: async (_url, _branch, dest) => {
       await mkdir(dest, { recursive: true });
@@ -352,11 +353,20 @@ describe("recheckApp", () => {
     });
 
     const saved = byRule(await loadRun("run1"));
-    expect(saved.R2.finalState).toBe("red");
-    expect(saved.R2.detail).toBe("Detail R2.");
+    expect(saved.R2).toMatchObject({
+      finalState: "red",
+      detail: "Detail R2. After the fixes, our check still fails on the fixed app; see the after-the-fix steps below.",
+    });
     expect(saved.R2.evidence.at(-1)?.caption).toBe("After the fix: steps of the R2 check (fail): R2 reason.");
-    expect(saved.R5.finalState).toBe("red");
-    expect(saved.R13.finalState).toBe("red");
+    expect(saved.R5).toMatchObject({
+      finalState: "red",
+      detail: "Detail R5. After the fixes, the code scan still finds this in the fixed code; see the after-the-fix code evidence below.",
+    });
+    expect(saved.R5.evidence.at(-1)).toEqual({ kind: "code", file: "src/App.tsx", line: 3, caption: "After the fix: Caption R5" });
+    expect(saved.R13).toMatchObject({
+      finalState: "red",
+      detail: "Detail R13. Nothing we run can re-check this on the fixed app, so it is not counted as fixed; check it by hand.",
+    });
   });
 
   it("is never green when no fix was merged for the finding, even if the check passes", async () => {
@@ -446,6 +456,84 @@ describe("recheckApp", () => {
     expect(saved.R1).toEqual(finding("R1", "pass", "app"));
   });
 
+  it("ends amber, not red, for a scan finding whose scan is now clean but whose app check could not run", async () => {
+    await makeRun([finding("R6", "fail", "code"), finding("R9", "fail", "both")]);
+    const h = harness();
+
+    await recheckApp("run1", {
+      ...h.deps,
+      mergeFixes: mergedOnly("R6", "R9"),
+      runChecks: checksWith({ R6: "not_checked", R9: "not_checked" }),
+    });
+
+    const saved = byRule(await loadRun("run1"));
+    expect(saved.R6).toMatchObject({
+      finalState: "amber",
+      detail: "Detail R6.",
+      humanStep: "We could not confirm this in the app (R6 reason): check it by hand.",
+    });
+    expect(saved.R9).toMatchObject({ finalState: "amber", humanStep: "We could not re-check this: R9 reason. Press Check again." });
+  });
+
+  it("puts the first review's step back and drops old after-the-fix evidence on a second re-check", async () => {
+    await makeRun([{ ...finding("R8"), humanStep: "Decide whether these purchases must move to In-App Purchase" }, finding("R2")]);
+    const h = harness();
+
+    await recheckApp("run1", { ...h.deps, mergeFixes: mergedOnly("R8", "R2"), runChecks: checksWith() });
+    let saved = byRule(await loadRun("run1"));
+    expect(saved.R8.finalState).toBe("amber");
+    expect(saved.R2.evidence.some((e) => e.caption.includes("(pass)"))).toBe(true);
+
+    await recheckApp("run1", { ...h.deps, mergeFixes: mergedOnly("R8", "R2"), runChecks: checksWith({ R8: "fail" }) });
+    saved = byRule(await loadRun("run1"));
+    expect(saved.R8).toMatchObject({ finalState: "red", humanStep: "Decide whether these purchases must move to In-App Purchase" });
+    expect(saved.R8.evidence.filter((e) => e.caption.startsWith("After the fix:")).map((e) => e.caption)).toEqual([
+      "After the fix: screen at the end of the R8 check",
+      "After the fix: steps of the R8 check (fail): R8 reason.",
+    ]);
+
+    await recheckApp("run1", { ...h.deps, mergeFixes: mergedOnly("R8", "R2"), clone: async () => Promise.reject(new Error("network down")) });
+    saved = byRule(await loadRun("run1"));
+    expect(saved.R2.finalState).toBe("amber");
+    expect(saved.R2.evidence).toEqual(finding("R2").evidence);
+    expect(saved.R8.humanStep).toMatch(/^We could not re-check this: the fixed app did not start \(network down\)/);
+  });
+
+  it("refreshes the fix sessions before merging, and goes on when that fails", async () => {
+    await makeRun([finding("R2")]);
+    const h = harness();
+    const order: string[] = [];
+
+    await recheckApp("run1", {
+      ...h.deps,
+      pollFixes: async () => {
+        order.push("poll");
+        throw new Error("Devin unreachable");
+      },
+      mergeFixes: async () => {
+        order.push("merge");
+        return { merged: ["R2"], skipped: [] };
+      },
+      runChecks: checksWith(),
+    });
+
+    expect(order).toEqual(["poll", "merge"]);
+    expect(byRule(await loadRun("run1")).R2.finalState).toBe("green");
+  });
+
+  it("stops an app a crashed server left on port 4010 before starting the fixed one", async () => {
+    await makeRun([finding("R2")]);
+    await writeFile(path.join(dir, "recheck-app.pid"), "4242");
+    const h = harness();
+
+    await recheckApp("run1", { ...h.deps, mergeFixes: mergedOnly("R2"), runChecks: checksWith() });
+
+    expect(h.kills[0]).toEqual([-4242, "SIGKILL"]);
+    expect(h.spawned).toHaveLength(1);
+    await expect(readFile(path.join(dir, "recheck-app.pid"), "utf8")).rejects.toThrow();
+    expect(byRule(await loadRun("run1")).R2.finalState).toBe("green");
+  });
+
   it("stops the app even when the checks throw", async () => {
     await makeRun([finding("R2")]);
     const h = harness();
@@ -520,7 +608,8 @@ describe("recheckApp", () => {
     expect(byRule(saved).R2).toMatchObject({
       finalState: "amber",
       detail: "Detail R2.",
-      humanStep: "We could not re-check this: the fixed app did not start (Remote branch store-ready-run1 not found). Press Check again.",
+      humanStep:
+        "We could not re-check this: the branch store-ready-run1 that should hold the merged fixes is not in the repository. Merge the fixes into it, then press Check again.",
     });
     expect(h.spawned).toHaveLength(0);
   });
