@@ -614,6 +614,44 @@ describe("recheckApp", () => {
     expect(h.spawned).toHaveLength(0);
   });
 
+  it("reuses the dependencies an earlier re-check installed for the same dependency lists", async () => {
+    const withPackages = async (_url: string, _branch: string, dest: string) => {
+      await mkdir(dest, { recursive: true });
+      await writeFile(path.join(dest, "package.json"), '{"name":"acme","dependencies":{"react":"19.0.0"}}');
+    };
+    await makeRun([finding("R2")]);
+    const first = harness();
+    await recheckApp("run1", {
+      ...first.deps,
+      clone: withPackages,
+      // The fake install leaves a node_modules folder behind, as a real one would.
+      execFile: async (file, args, options) => {
+        await first.deps.execFile!(file, args, options);
+        await mkdir(path.join(String(options.cwd), "node_modules", "react"), { recursive: true });
+        await writeFile(path.join(String(options.cwd), "node_modules", "react", "index.js"), "module.exports = 1;\n");
+      },
+      runChecks: checksWith(),
+    });
+    expect(first.installs).toHaveLength(1);
+
+    const second = harness();
+    await recheckApp("run1", { ...second.deps, clone: withPackages, runChecks: checksWith() });
+    expect(second.installs).toHaveLength(0);
+    expect(second.spawned).toHaveLength(1);
+
+    // Other dependency lists: nothing to reuse, so it installs.
+    const third = harness();
+    await recheckApp("run1", {
+      ...third.deps,
+      clone: async (_url, _branch, dest) => {
+        await mkdir(dest, { recursive: true });
+        await writeFile(path.join(dest, "package.json"), '{"name":"acme","dependencies":{"react":"19.1.0"}}');
+      },
+      runChecks: checksWith(),
+    });
+    expect(third.installs).toHaveLength(1);
+  });
+
   it("passes none of this process's secrets to npm install or the app", async () => {
     const secrets = { DEVIN_API_KEY: "cog_secret", GITHUB_TOKEN: "ghp_secret", MODEL_API_KEY: "model_secret" };
     Object.assign(process.env, secrets);
@@ -637,12 +675,15 @@ describe("recheckApp", () => {
     expect(h.installs).toHaveLength(1);
     expect(h.installs[0]).toMatchObject({ file: "npm", args: INSTALL_ARGS });
     expect(INSTALL_ARGS).toEqual(["install", "--ignore-scripts", "--no-audit", "--no-fund"]);
+    expect(h.installs[0].options.env).toHaveProperty("npm_config_cache");
+    expect(h.spawned[0].options.env).not.toHaveProperty("npm_config_cache");
     const envs = [h.installs[0].options.env, h.spawned[0].options.env];
     for (const env of envs) {
       expect(env).toBeDefined();
       for (const name of ["DEVIN_API_KEY", "GITHUB_TOKEN", "MODEL_API_KEY"]) expect(env).not.toHaveProperty(name);
       expect(Object.values(env!)).not.toContain("ghp_secret");
-      expect(Object.keys(env!).sort()).toEqual(["HOME", "NEXT_PUBLIC_SITE", "NODE_ENV", "PATH", "PORT", "VITE_API_URL"]);
+      // The install also gets the folder where downloaded packages are kept between re-checks; the app does not.
+      expect(Object.keys(env!).filter((k) => k !== "npm_config_cache").sort()).toEqual(["HOME", "NEXT_PUBLIC_SITE", "NODE_ENV", "PATH", "PORT", "VITE_API_URL"]);
       expect(env).toMatchObject({
         PATH: process.env.PATH,
         PORT: "4010",

@@ -5,8 +5,9 @@ import {
   type ExecFileOptions,
   type SpawnOptions,
 } from "node:child_process";
-import { randomBytes } from "node:crypto";
-import { access, lstat, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createHash, randomBytes } from "node:crypto";
+import { constants as fsConstants } from "node:fs";
+import { access, cp, lstat, mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -81,6 +82,58 @@ async function npmInstall(exec: ExecFn, dir: string, env: NodeJS.ProcessEnv): Pr
   } catch (err) {
     const stderr = (err as { stderr?: string }).stderr ?? "";
     throw new Error(`npm install failed: ${lastLines(stderr) || errorMessage(err)}`);
+  }
+}
+
+const DEPENDENCY_FILES = ["package.json", "package-lock.json", "npm-shrinkwrap.json", "bun.lock", "bun.lockb", "yarn.lock", "pnpm-lock.yaml"];
+
+/** The same dependency lists give the same key, whatever else in the repository changed. */
+export async function dependencyKey(dir: string): Promise<string> {
+  const hash = createHash("sha256");
+  for (const name of DEPENDENCY_FILES) {
+    const content = await readFile(path.join(dir, name)).catch(() => null);
+    if (content) hash.update(name).update("\0").update(content).update("\0");
+  }
+  return hash.digest("hex").slice(0, 32);
+}
+
+export function installCacheDir(key: string): string {
+  return path.join(runsDir(), ".install-cache", key);
+}
+
+/** Copies a node_modules folder; on file systems that can, the copy shares its data with the original and takes seconds. */
+function copyModules(from: string, to: string): Promise<void> {
+  return cp(from, to, { recursive: true, verbatimSymlinks: true, mode: fsConstants.COPYFILE_FICLONE });
+}
+
+/**
+ * Installs the fixed app's dependencies, or reuses what an earlier re-check installed for the same dependency
+ * lists. A fix rarely changes the dependencies, and a fresh install is the slowest and most network-bound step
+ * of a re-check. The kept copy is taken right after the install, before the app's own code has run, and the
+ * app only ever gets a copy of it.
+ */
+async function installDependencies(exec: ExecFn, dir: string, env: NodeJS.ProcessEnv): Promise<void> {
+  const kept = path.join(installCacheDir(await dependencyKey(dir)), "node_modules");
+  const modules = path.join(dir, "node_modules");
+  if (await exists(kept)) {
+    try {
+      await copyModules(kept, modules);
+      return;
+    } catch (err) {
+      console.error(`recheck: could not reuse installed dependencies (${errorMessage(err)}); installing afresh`);
+      await rm(modules, { recursive: true, force: true });
+    }
+  }
+  await npmInstall(exec, dir, { ...env, npm_config_cache: path.join(runsDir(), ".npm-cache") });
+  if (!(await exists(modules))) return;
+  const staging = `${kept}.${randomBytes(4).toString("hex")}.tmp`;
+  try {
+    await mkdir(path.dirname(kept), { recursive: true });
+    await copyModules(modules, staging);
+    await rename(staging, kept);
+  } catch (err) {
+    await rm(staging, { recursive: true, force: true }).catch(() => {});
+    console.error(`recheck: could not keep the installed dependencies for next time: ${errorMessage(err)}`);
   }
 }
 
@@ -529,7 +582,7 @@ export async function recheckApp(runId: string, overrides: Partial<RecheckDeps> 
           });
           home = await mkdtemp(path.join(os.tmpdir(), "fts-recheck-home-"));
           const env = await appEnv(repoDir, home);
-          await npmInstall(deps.execFile, repoDir, env);
+          await installDependencies(deps.execFile, repoDir, env);
           await startApp(repoDir, env, deps, app);
         } catch (err) {
           throw err instanceof BranchMissingError ? err : new StartError(errorMessage(err));
