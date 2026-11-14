@@ -146,7 +146,26 @@ export async function addRepo(runId: string, repoUrl: string, overrides: Partial
   return run;
 }
 
+// On globalThis so a dev hot reload of this module does not forget reviews that are still running.
+const reviewing: Set<string> = ((globalThis as { __ftsReviewing?: Set<string> }).__ftsReviewing ??= new Set());
+
+/** True while reviewApp is working on this run in this process. */
+export function isReviewActive(runId: string): boolean {
+  return reviewing.has(runId);
+}
+
+export const REVIEW_INTERRUPTED = "The review was interrupted. Start it again from the first page.";
+
 export async function reviewApp(runId: string, overrides: Partial<ReviewDeps> = {}): Promise<void> {
+  reviewing.add(runId);
+  try {
+    await review(runId, overrides);
+  } finally {
+    reviewing.delete(runId);
+  }
+}
+
+async function review(runId: string, overrides: Partial<ReviewDeps>): Promise<void> {
   const deps = { ...defaultDeps, ...overrides };
   let run: Run | undefined;
   try {
