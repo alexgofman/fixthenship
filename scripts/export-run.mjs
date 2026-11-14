@@ -35,6 +35,7 @@ const {
 } = await import("../components/findingDisplay.ts");
 const { RULES } = await import("../lib/rules.ts");
 const { FIX_STATUS_WORDS, PLAIN_WORDS } = await import("../lib/plainWords.ts");
+const { decode, findGuidelines } = await import("../lib/decoder.ts");
 process.emitWarning = emitWarning;
 const CHECKLIST = JSON.parse(await readFile(path.join(ROOT, "lib", "content", "checklist.json"), "utf8")).groups;
 
@@ -62,6 +63,12 @@ export const SAVED_COPY_LINE = "A saved copy of a real FixThenShip review. Nothi
 const STYLE_FILES = [path.join("app", "globals.css"), path.join("components", "plain.css")];
 
 const EXTRA_CSS = `
+.decoder { margin: 0 0 28px; padding: 18px 20px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); }
+.decoder h2 { margin: 0 0 4px; font-size: 17px; }
+.decoder .finding { border-left-color: var(--accent); }
+.decoder-message { margin: 10px 0 0; padding: 12px 14px; background: #fffefb; border: 1px solid var(--border);
+  border-radius: 8px; font-family: var(--mono); font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .export-banner { margin: 0; padding: 10px 20px; text-align: center; font-size: 14px; color: var(--muted);
   border-bottom: 1px solid var(--border); }
 .export-note { color: var(--muted); font-size: 13px; }
@@ -214,7 +221,7 @@ function findingCard(f, run, copied) {
   const display = displayFor(f);
   const first = initialDisplay(f.state);
   const changed = f.finalState !== "" && first.label !== display.label;
-  return `<article class="finding finding-${display.tone}">
+  return `<article id="finding-${esc(f.ruleId)}" class="finding finding-${display.tone}">
 <header class="finding-head"><span class="guideline-badge">Guideline ${esc(f.guideline)}</span>${pill(display)}</header>
 <h3 class="finding-title">${esc(f.title)}</h3>
 ${plainWords(f, headingsFor(f, display))}
@@ -227,6 +234,42 @@ ${findingEvidence(f, run, copied)}
     changed ? `<span>First review: <span class="tone-text-${first.tone}">${esc(first.label)}</span></span>` : ""
   }<span class="rule-id">${esc(f.ruleId)}</span></footer>
 </article>`;
+}
+
+/** Same box as components/RejectionDecoder.tsx: each guideline named in Apple's pasted message, in plain words. */
+export function rejectionDecoderHtml(run) {
+  if (!run.rejectionText) return "";
+  const numbers = findGuidelines(run.rejectionText);
+  if (numbers.length === 0) {
+    return `<p class="finding-detail decoder">We could not find a guideline number in the message you pasted.</p>`;
+  }
+  const row = (term, text) => `<div><dt>${esc(term)}</dt><dd>${esc(text)}</dd></div>`;
+  const line = (html) => `<p class="finding-detail" style="margin-top:10px">${html}</p>`;
+  const ourCheck = (entry) => {
+    if (!entry.ourCheck) return line("We have no automatic check for this one yet. Use the steps above.");
+    const f = run.findings.find((x) => x.ruleId === entry.ourCheck);
+    if (!f) return line("Our check for this is still running");
+    return line(`Our check for this: <a href="#finding-${esc(f.ruleId)}">${esc(displayFor(f).label)}</a>`);
+  };
+  const cards = numbers
+    .map((n) => {
+      const entry = decode(n);
+      const head = `<header class="finding-head"><span class="guideline-badge">Guideline ${esc(n)}</span></header>`;
+      if (!entry) return `<article class="finding">${head}${line(`We do not have a plain explanation for guideline ${esc(n)} yet.`)}</article>`;
+      const fellBack = entry.fellBack
+        ? `<p class="muted small" style="margin:0 0 4px">We explain guideline ${esc(entry.guideline)}, the part of Apple's rules that ${esc(n)} belongs to.</p>`
+        : "";
+      return `<article class="finding">${head}<h3 class="finding-title">${esc(entry.appleCallsIt)}</h3>${fellBack}<dl class="plain">${row(
+        "In plain words",
+        entry.plain,
+      )}${row("What the reviewer most often saw", entry.usuallyMeans)}${row("What to do first", entry.whatToDo)}</dl>${ourCheck(entry)}</article>`;
+    })
+    .join("\n");
+  return `<section class="decoder" aria-labelledby="decoder-title"><h2 id="decoder-title">What Apple's message means</h2>
+<p class="muted small" style="margin:0 0 14px">Each guideline Apple named, in plain words. This is not legal advice.</p>
+<div class="findings">${cards}</div>
+<details class="evidence-details"><summary>Show the message you pasted</summary><div class="decoder-message">${esc(run.rejectionText)}</div></details>
+</section>`;
 }
 
 function verdictLetter(run, copied) {
@@ -378,6 +421,7 @@ ${EXTRA_CSS}
 <header class="site-header"><div class="site-header-inner"><span class="brand">${brandMark}<span class="brand-word">Fix<span>Then</span>Ship</span></span><span class="site-tag">App Review rehearsal</span></div></header>
 <main class="run-page"><div class="run">
 <div class="run-head"><div><p class="eyebrow">Run ${esc(run.id)}</p><h1 class="run-title">${esc(name)}</h1></div></div>
+${rejectionDecoderHtml(run)}
 ${verdictLetter(run, copied)}
 ${devinBoard(run.fixes ?? [])}
 ${readyReport(run, copied)}
