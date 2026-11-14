@@ -3,6 +3,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { cp, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { CheckOutcome, CheckResult, RuleId } from "../types";
+import { pickModel } from "./pickModel";
 import { parseSteps, traceReason } from "./trace";
 
 export const CHECK_TIMEOUT_MS = 120_000;
@@ -27,6 +28,8 @@ export type RunChecksOptions = {
   spawn?: SpawnFn;
   /** Called after each check, in order. */
   onResult?: (result: CheckResult) => void | Promise<void>;
+  /** Chooses the model the checks' agent uses; by default the first of MODEL and MODEL_FALLBACKS that answers. */
+  pickModel?: () => Promise<string | undefined>;
 };
 
 type Exit = { code: number | null; timedOut: boolean; error?: string; output: string };
@@ -136,7 +139,7 @@ async function runOne(
   appUrl: string,
   outDir: string,
   env: { email: string; password: string },
-  opts: Required<Pick<RunChecksOptions, "timeoutMs" | "cwd" | "spawn">>,
+  opts: Required<Pick<RunChecksOptions, "timeoutMs" | "cwd" | "spawn">> & { model?: string },
   attempt = 1,
 ): Promise<CheckResult> {
   const dest = path.resolve(outDir, ruleId);
@@ -159,6 +162,7 @@ async function runOne(
         TEST_EMAIL: env.email.replace("@", `.${ruleId.toLowerCase()}${attempt > 1 ? `.${attempt}` : ""}@`),
         TEST_PASSWORD: env.password,
         CHECK_OUT_DIR: dest,
+        ...(opts.model ? { MODEL: opts.model } : {}),
       },
     },
     opts.timeoutMs,
@@ -217,6 +221,8 @@ export async function runChecks(
     timeoutMs: options.timeoutMs ?? CHECK_TIMEOUT_MS,
     cwd: options.cwd ?? process.cwd(),
     spawn: options.spawn ?? (nodeSpawn as SpawnFn),
+    // One small question before the checks start: a model over its daily limit would fail all ten.
+    model: await (options.pickModel ?? pickModel)().catch(() => undefined),
   };
 
   const results: CheckResult[] = [];
