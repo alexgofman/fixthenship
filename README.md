@@ -149,6 +149,7 @@ The largest gap is guideline 4.2, "a website in a wrapper", which no tool can pa
 - Test accounts use a public inbox (mailinator.com) by default, which is fine for demo apps only. Set `TEST_EMAIL_DOMAIN` to a domain whose mail you own for anything with real data.
 - The re-check starts the fixed app with `npm run dev`, so the repository must have a `dev` script that starts it.
 - The re-check installs and runs the reviewed app's code on this machine (with `--ignore-scripts` and a stripped environment). That is meant for apps you own; in production it must run inside an isolated sandbox (container or microVM) with no host secrets.
+- The fix for a missing support page wrote the developer's own email address into the app as the support contact, taken from the repository's history, without asking. A real version must use a placeholder and leave the finding as "needs you" until the owner sets an address.
 
 ## Project layout
 
@@ -159,7 +160,6 @@ The largest gap is guideline 4.2, "a website in a wrapper", which no tool can pa
 - `scripts/`: `export-run.mjs`, which saves a finished run as a static page.
 - `examples/`: an example run that opens without any keys.
 - `tests/`: Vitest tests.
-- The fix for a missing support page wrote the developer's own email address into the app as the support contact, taken from the repository's history, without asking. A real version must use a placeholder and leave the finding as "needs you" until the owner sets an address.
 
 ## How this was built
 
