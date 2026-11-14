@@ -16,12 +16,25 @@ process.emitWarning = (warning, ...rest) => {
   if (code === "MODULE_TYPELESS_PACKAGE_JSON") return;
   return emitWarning.call(process, warning, ...rest);
 };
-const { displayFor, formatDate, initialDisplay, isRechecked, rejectionSentence, repoName, runName, sortFindings, summaryLine } =
-  await import(
-  "../components/findingDisplay.ts"
-);
+const {
+  cleanReason,
+  displayFor,
+  findingDetail,
+  fixSummary,
+  formatDate,
+  hasOpenFindings,
+  headingsFor,
+  initialDisplay,
+  isRechecked,
+  NOT_CHECKED_LINE,
+  rejectionSentence,
+  repoName,
+  runName,
+  sortFindings,
+  summaryLine,
+} = await import("../components/findingDisplay.ts");
 const { RULES } = await import("../lib/rules.ts");
-const { PLAIN_WORDS } = await import("../lib/plainWords.ts");
+const { FIX_STATUS_WORDS, PLAIN_WORDS } = await import("../lib/plainWords.ts");
 process.emitWarning = emitWarning;
 
 /** Same text as NOTE_LINES in components/ReadyReport.tsx (a test keeps them in step). */
@@ -137,18 +150,19 @@ function evidenceHtml(item, run, copied) {
   if ("file" in item) {
     const ref = esc(`${item.file}:${item.line}`);
     const href = githubBlobUrl(run.repoUrl, item.file, item.line);
-    return `<div class="evidence-code">${href ? link(href, ref, "mono") : `<code class="mono">${ref}</code>`}<span class="evidence-caption">${esc(item.caption)}</span></div>`;
+    return `<div class="evidence-code">${href ? link(href, ref, "mono") : `<code class="mono">${ref}</code>`}<span class="evidence-caption">${esc(cleanReason(item.caption))}</span></div>`;
   }
   const rel = safeRelative(item.path);
   const available = rel !== null && copied.has(rel);
+  const caption = cleanReason(item.caption);
   if (item.kind === "screenshot") {
     const img = available
-      ? link(relHref(rel), `<img src="${esc(relHref(rel))}" alt="${esc(item.caption)}">`)
-      : `<div class="shot-placeholder" role="img" aria-label="Screenshot unavailable: ${esc(item.caption)}"><span>Screenshot unavailable</span></div>`;
-    return `<figure class="evidence-shot">${img}<figcaption>${esc(item.caption)}</figcaption></figure>`;
+      ? link(relHref(rel), `<img src="${esc(relHref(rel))}" alt="${esc(caption)}">`)
+      : `<div class="shot-placeholder" role="img" aria-label="Screenshot unavailable: ${esc(caption)}"><span>Screenshot unavailable</span></div>`;
+    return `<figure class="evidence-shot">${img}<figcaption>${esc(caption)}</figcaption></figure>`;
   }
-  const label = esc(item.caption || item.path);
-  return `<div class="evidence-log">${available ? link(relHref(rel), label) : `<span>${label}</span>`}<span class="evidence-caption mono">${esc(item.path)}</span></div>`;
+  const label = esc(caption || "Open the log");
+  return `<div class="evidence-log">${available ? link(relHref(rel), label) : `<span>${label}</span>`}</div>`;
 }
 
 function evidenceBlock(items, run, copied, heading) {
@@ -183,28 +197,27 @@ function findingEvidence(f, run, copied) {
   return `<div class="evidence"><p class="evidence-heading">Evidence</p>${others.map((e) => evidenceHtml(e, run, copied)).join("")}${shotHtml}</div>`;
 }
 
-function plainWords(f, passed) {
+function plainWords(f, headings) {
   const plain = PLAIN_WORDS[f.ruleId];
   if (!plain) return "";
   const row = (term, text) => `<div><dt>${esc(term)}</dt><dd>${esc(text)}</dd></div>`;
-  return `<dl class="plain">${row(passed ? "What reviewers reject" : "The problem", plain.problem)}${row("Why Apple cares", plain.whyAppleCares)}${row(
-    passed ? "How it gets fixed" : "What we do",
-    plain.whatWeDo,
-  )}</dl>`;
+  return `<dl class="plain">${headings.notChecked ? row("Not checked", NOT_CHECKED_LINE) : ""}${row(headings.problem, plain.problem)}${row(
+    "Why Apple cares",
+    plain.whyAppleCares,
+  )}${row(headings.fix, plain.whatWeDo)}</dl>`;
 }
 
 function findingCard(f, run, copied) {
   const display = displayFor(f);
   const first = initialDisplay(f.state);
   const changed = f.finalState !== "" && first.label !== display.label;
-  const passed = display.tone === "green" && f.state === "pass";
   return `<article class="finding finding-${display.tone}">
 <header class="finding-head"><span class="guideline-badge">Guideline ${esc(f.guideline)}</span>${pill(display)}</header>
 <h3 class="finding-title">${esc(f.title)}</h3>
-${plainWords(f, passed)}
+${plainWords(f, headingsFor(f, display))}
 ${display.note ? `<p class="human-step"><strong>Needs you:</strong> ${esc(display.note)}</p>` : ""}
 <details class="evidence-details" open><summary>Show the evidence</summary><div class="evidence-body">
-<p class="finding-detail">${esc(f.detail)}</p>
+<p class="finding-detail">${esc(findingDetail(f))}</p>
 ${findingEvidence(f, run, copied)}
 </div></details>
 <footer class="finding-meta"><span>Confidence: <strong>${esc(f.confidence)}</strong></span><span>Checked in ${esc(SOURCE_LABEL[f.source] ?? f.source)}</span>${
@@ -254,16 +267,16 @@ function devinBoard(fixes) {
     .map(
       (fix) => `<tr>
 <td data-label="Rule"><div class="cell"><span class="board-rule">${esc(fix.ruleId)}</span> ${fix.url ? link(fix.url, esc(title(fix.ruleId) || "session")) : esc(title(fix.ruleId))}</div></td>
-<td data-label="Status"><div class="cell"><span class="status status-${esc(fix.status)}">${esc(fix.status)}</span></div></td>
+<td data-label="Status"><div class="cell"><span class="status status-${esc(fix.status)}">${esc(FIX_STATUS_WORDS[fix.status] ?? fix.status)}</span></div></td>
 <td data-label="Pull request"><div class="cell">${fix.prUrl ? link(fix.prUrl, "pull request") : `<span class="muted">—</span>`}</div></td>
-<td data-label="Summary"><div class="cell">${fix.summary ? esc(fix.summary) : `<span class="muted">—</span>`}</div></td>
-<td data-label="Units used" class="num"><div class="cell">${esc(formatUnits(fix.acus || 0))}</div></td>
+<td data-label="Summary"><div class="cell">${fix.summary ? esc(fixSummary(fix.summary)) : `<span class="muted">—</span>`}</div></td>
+<td data-label="Devin units" class="num"><div class="cell">${esc(formatUnits(fix.acus || 0))}</div></td>
 </tr>`,
     )
     .join("\n");
   return `<section class="board" aria-labelledby="board-title">
-<div class="section-head"><h2 id="board-title">Devin board</h2><span class="muted small">${fixes.length} ${fixes.length === 1 ? "session" : "sessions"} · ${esc(formatUnits(total))} units used</span></div>
-<table class="board-table"><thead><tr><th>Rule</th><th>Status</th><th>Pull request</th><th>Summary</th><th class="num">Units used</th></tr></thead>
+<div class="section-head"><h2 id="board-title">Devin board</h2><span class="muted small">${fixes.length} ${fixes.length === 1 ? "session" : "sessions"} · ${esc(formatUnits(total))} Devin units</span></div>
+<table class="board-table"><thead><tr><th>Rule</th><th>Status</th><th>Pull request</th><th>Summary</th><th class="num">Devin units</th></tr></thead>
 <tbody>${rows}</tbody></table>
 </section>`;
 }
@@ -292,7 +305,7 @@ function readyReport(run, copied) {
     const fix = fixFor(f);
     const shown = items.length ? evidenceBlock(items, run, copied, "After the fix") : `<div class="evidence"><p class="evidence-heading">After the fix</p><p class="finding-detail">The re-check passed.</p></div>`;
     const devin = fix?.summary
-      ? `<p class="finding-detail">Devin: ${esc(fix.summary)}${fix.prUrl ? ` ${link(fix.prUrl, "pull request")}` : ""}</p>`
+      ? `<p class="finding-detail">Devin: ${esc(fixSummary(fix.summary))}${fix.prUrl ? ` ${link(fix.prUrl, "pull request")}` : ""}</p>`
       : "";
     return `<article class="finding finding-green">${cardHead(f)}${shown}${devin}</article>`;
   });
@@ -301,7 +314,7 @@ function readyReport(run, copied) {
     "Needs you",
     run.findings.filter((f) => f.finalState === "amber"),
     (f) =>
-      `<li class="finding finding-amber"><span class="guideline-badge">Guideline ${esc(f.guideline)}</span><strong class="finding-title" style="display:block">${esc(f.title)}</strong><span class="finding-detail">${esc(f.humanStep || f.detail)}</span></li>`,
+      `<li class="finding finding-amber"><span class="guideline-badge">Guideline ${esc(f.guideline)}</span><strong class="finding-title" style="display:block">${esc(f.title)}</strong><span class="finding-detail">${esc(f.humanStep || findingDetail(f))}</span></li>`,
     true,
   );
   const failing = readySection(
@@ -309,7 +322,7 @@ function readyReport(run, copied) {
     "Still failing",
     run.findings.filter((f) => f.finalState === "red"),
     (f) =>
-      `<article class="finding finding-red">${cardHead(f)}<p class="finding-detail">${esc(f.detail)}</p>${
+      `<article class="finding finding-red">${cardHead(f)}<p class="finding-detail">${esc(findingDetail(f))}</p>${
         f.humanStep ? `<p class="human-step"><strong>Next step:</strong> ${esc(f.humanStep)}</p>` : ""
       }</article>`,
   );
@@ -317,12 +330,12 @@ function readyReport(run, copied) {
     "ready-unchecked",
     "Not checked",
     run.findings.filter((f) => f.finalState === ""),
-    (f) => `<article class="finding finding-grey">${cardHead(f, initialDisplay(f.state))}<p class="finding-detail">${esc(f.detail)}</p></article>`,
+    (f) => `<article class="finding finding-grey">${cardHead(f, initialDisplay(f.state))}<p class="finding-detail">${esc(findingDetail(f))}</p></article>`,
   );
   const notes = `<section class="board" aria-labelledby="ready-notes"><div class="section-head"><h2 id="ready-notes">Notes for App Review</h2></div>
 <p class="muted small" style="margin-top:0">Paste into App Store Connect, App Review Information, Notes. Fill in the demo account first.</p>
 <pre class="ready-notes">${esc(reviewNotes(run))}</pre></section>`;
-  return `<section aria-labelledby="ready-title"><h2 id="ready-title" class="run-title" style="margin-bottom:16px">Ready to submit</h2>
+  return `<section aria-labelledby="ready-title"><h2 id="ready-title" class="run-title" style="margin-bottom:16px">${hasOpenFindings(run) ? "What is left to do" : "Ready to submit"}</h2>
 ${fixed}\n${needs}\n${failing}\n${unchecked}\n${notes}
 <p class="refresh-note">FixThenShip predicts what a reviewer is likely to flag. Apple makes the decision.</p></section>`;
 }

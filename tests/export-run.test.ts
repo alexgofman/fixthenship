@@ -124,6 +124,38 @@ describe("export-run", () => {
     expect(card.indexOf("After the fix")).toBeLessThan(card.indexOf('src="recheck/r2.png"'));
   });
 
+  it("describes the rule on a not-checked card and calls a risk a risk", async () => {
+    const html = renderRunHtml(await loadExampleRun(), "");
+    const card = (title: string) => {
+      const start = html.indexOf(`<h3 class="finding-title">${title}`);
+      return html.slice(start, html.indexOf("</article>", start));
+    };
+    const r11 = card("No tracking or third-party AI calls before consent");
+    expect(r11).toContain("We could not check this");
+    expect(r11).toContain("<dt>What reviewers reject</dt>");
+    expect(r11).not.toContain("The problem");
+    expect(r11).not.toContain("What we do");
+    expect(card("&quot;Just a website&quot; risk")).toContain("<dt>The risk</dt>");
+  });
+
+  it("shows no raw tool output, raw statuses or evidence paths", async () => {
+    const example = await loadExampleRun();
+    const findings = example.findings.map((f) =>
+      f.ruleId === "R7"
+        ? { ...f, detail: `${f.detail} In the app: ASSERTION_FAILED: agent.assert failed: no Apple button (e.g., node n9011: "x")` }
+        : f,
+    );
+    const fixes = [
+      ...example.fixes,
+      { ...example.fixes[0], ruleId: "R5" as const, status: "error" as const, summary: "Could not start a Devin session: Devin API POST /v1/sessions failed: 402 {}" },
+    ];
+    const html = renderRunHtml({ ...example, findings, fixes }, "");
+    expect(html).not.toMatch(/ASSERTION_FAILED|agent\.assert|n9011|\/v1\/sessions|units used|evidence-caption mono/);
+    expect(html).toContain("Devin could not start this fix.");
+    expect(html).toContain("Waiting for an answer");
+    expect(html).toContain("What is left to do");
+  });
+
   it("uses the app's host when the run has no repository", async () => {
     const example = { ...(await loadExampleRun()), repoUrl: "" };
     const html = renderRunHtml(example, "");
