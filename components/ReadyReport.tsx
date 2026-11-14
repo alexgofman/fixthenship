@@ -27,15 +27,18 @@ export type ReadySections = {
   fixed: Finding[];
   needsYou: Finding[];
   stillFailing: Finding[];
+  passed: Finding[];
   notChecked: Finding[];
 };
 
+/** Each finding in at most one section; a first-review pass the fixes broke is red, so it is still failing. */
 export function readySections(run: Run): ReadySections {
   return {
-    fixed: run.findings.filter((f) => f.finalState === "green"),
+    fixed: run.findings.filter(wasFixed),
     needsYou: run.findings.filter((f) => f.finalState === "amber"),
     stillFailing: run.findings.filter((f) => f.finalState === "red"),
-    notChecked: run.findings.filter((f) => f.finalState === ""),
+    passed: run.findings.filter((f) => f.state === "pass" && (f.finalState === "" || f.finalState === "green")),
+    notChecked: run.findings.filter((f) => f.state === "not_checked" && f.finalState === ""),
   };
 }
 
@@ -116,7 +119,6 @@ function CardHead({ finding }: { finding: Finding }) {
 }
 
 function AfterFix({ finding, fix, run }: { finding: Finding; fix?: FixSession; run: Run }) {
-  if (!wasFixed(finding)) return <p className="finding-detail">Passed on the first review and again on the re-check.</p>;
   const items = afterFixEvidence(finding);
   return (
     <div className="evidence">
@@ -222,6 +224,26 @@ export default function ReadyReport({ run }: { run: Run }) {
                     <strong>Next step:</strong> {f.humanStep}
                   </p>
                 )}
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="board" aria-labelledby="ready-passed">
+        <Head id="ready-passed" title="Passed" n={s.passed.length} />
+        {s.passed.length === 0 ? (
+          <None />
+        ) : (
+          <div className="findings">
+            {s.passed.map((f) => (
+              <article key={f.ruleId} className="finding finding-green">
+                <header className="finding-head">
+                  <span className="guideline-badge">Guideline {f.guideline}</span>
+                  <StatePill display={initialDisplay(f.state)} />
+                </header>
+                <h3 className="finding-title">{f.title}</h3>
+                <p className="finding-detail">Passed on the first review.</p>
               </article>
             ))}
           </div>
