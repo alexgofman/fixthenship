@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createSession, getSession, mapStatus } from "../../lib/devin/client";
+import { createSession, getSession, mapStatus, sendMessage } from "../../lib/devin/client";
 import { fakeFetch, json } from "./helpers";
 
 beforeEach(() => {
@@ -94,6 +94,20 @@ describe("Devin client", () => {
   it("handles sessions with no pull request or structured output", async () => {
     fakeFetch([["GET /sessions/", () => json({ session_id: "d", url: "u", status: "suspended", status_detail: "out_of_quota", acus_consumed: 5, pull_requests: [], structured_output: null })]]);
     expect(await getSession("d")).toEqual({ status: "error", prUrl: "", summary: "", acus: 5 });
+  });
+
+  it("sends a message to a session", async () => {
+    const calls = fakeFetch([["POST /sessions/devin-1/messages", () => json({ session_id: "devin-1" })]]);
+    await sendMessage("devin-1", "Merge store-ready");
+    expect(calls[0].url).toBe("https://api.devin.ai/v3/organizations/org-123/sessions/devin-1/messages");
+    expect(calls[0].method).toBe("POST");
+    expect(calls[0].headers.Authorization).toBe("Bearer cog_test");
+    expect(calls[0].body).toEqual({ message: "Merge store-ready" });
+  });
+
+  it("throws when a message cannot be sent", async () => {
+    fakeFetch([["POST /sessions/devin-1/messages", () => json({ detail: "gone" }, 404)]]);
+    await expect(sendMessage("devin-1", "hi")).rejects.toThrow("404");
   });
 
   it("throws on API errors", async () => {

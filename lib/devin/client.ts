@@ -131,3 +131,11 @@ export async function getSession(sessionId: string): Promise<DevinSession> {
   const body = (await devinFetch(`/sessions/${encodeURIComponent(sessionId)}`)) as DevinSessionResponse;
   return toDevinSession(body);
 }
+
+/** Sends a message to a session; a suspended session resumes when it gets one. */
+export async function sendMessage(sessionId: string, message: string): Promise<void> {
+  await devinFetch(`/sessions/${encodeURIComponent(sessionId)}/messages`, {
+    method: "POST",
+    body: JSON.stringify({ message }),
+  });
+}
