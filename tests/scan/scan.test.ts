@@ -101,6 +101,27 @@ describe("scanRepo folders", () => {
     expect((await scanRepo(dir)).map((f) => f.ruleId)).toEqual(["R2", "R10"]);
   });
 
+  it("does not read test files or test folders, which never reach the screen", async () => {
+    await cp(path.join(FIXTURES, "r10", "good"), dir, { recursive: true });
+    const signUp = 'export const make = () => supabase.auth.signUp({ email: "a@b.c", password: "x" });\n';
+    for (const file of [
+      "src/auth.test.ts",
+      "src/auth.spec.jsx",
+      "src/test/setup.ts",
+      "src/__tests__/auth.js",
+      "src/__mocks__/supabase.js",
+      "tests/auth.ts",
+      "e2e/auth.ts",
+    ]) {
+      await mkdir(path.dirname(path.join(dir, file)), { recursive: true });
+      await writeFile(path.join(dir, file), signUp);
+    }
+    expect(await scanRepo(dir)).toEqual([]);
+
+    await writeFile(path.join(dir, "src", "auth.ts"), signUp);
+    expect((await scanRepo(dir)).map((f) => f.ruleId)).toEqual(["R6"]);
+  });
+
   it("does not count a builder's packages and client code, which nobody sees, as branding", async () => {
     await cp(path.join(FIXTURES, "r10", "good"), dir, { recursive: true });
     await writeFile(

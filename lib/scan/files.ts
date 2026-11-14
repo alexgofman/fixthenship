@@ -3,6 +3,9 @@ import path from "node:path";
 
 const SOURCE_EXTENSIONS = new Set(["ts", "tsx", "js", "jsx", "html", "json", "md"]);
 const SKIP_DIRS = new Set(["node_modules", "dist", "build", ".git", ".next", "coverage"]);
+/** Tests never reach the screen, so they are not evidence of what the app does. */
+const TEST_DIRS = new Set(["test", "tests", "__tests__", "__mocks__", "e2e"]);
+const TEST_FILE = /\.(test|spec)\.[jt]sx?$/;
 const LOCK_FILES = new Set([
   "package-lock.json",
   "npm-shrinkwrap.json",
@@ -38,10 +41,11 @@ async function walk(root: string, rel: string, out: SourceFile[]): Promise<void>
   for (const entry of entries) {
     const childRel = rel ? `${rel}/${entry.name}` : entry.name;
     if (entry.isDirectory()) {
-      if (!SKIP_DIRS.has(entry.name)) await walk(root, childRel, out);
+      if (!SKIP_DIRS.has(entry.name) && !TEST_DIRS.has(entry.name)) await walk(root, childRel, out);
       continue;
     }
     if (!entry.isFile() || LOCK_FILES.has(entry.name) || entry.name.endsWith(".min.js")) continue;
+    if (TEST_FILE.test(entry.name)) continue;
     const ext = path.extname(entry.name).slice(1).toLowerCase();
     if (!SOURCE_EXTENSIONS.has(ext)) continue;
     const abs = path.join(root, childRel);
