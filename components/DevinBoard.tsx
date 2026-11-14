@@ -1,5 +1,7 @@
-import { getRule } from "@/lib/rules";
-import type { FixSession } from "@/lib/types";
+import { FIX_STATUS_WORDS } from "../lib/plainWords";
+import { getRule } from "../lib/rules";
+import type { FixSession } from "../lib/types";
+import { fixSummary } from "./findingDisplay";
 
 function ruleTitle(id: FixSession["ruleId"]): string {
   try {
@@ -22,7 +24,7 @@ export default function DevinBoard({ fixes }: { fixes: FixSession[] }) {
       <div className="section-head">
         <h2 id="board-title">Devin board</h2>
         <span className="muted small">
-          {fixes.length} {fixes.length === 1 ? "session" : "sessions"} · {formatUnits(total)} units used
+          {fixes.length} {fixes.length === 1 ? "session" : "sessions"} · {formatUnits(total)} Devin units
         </span>
       </div>
       <table className="board-table">
@@ -32,7 +34,7 @@ export default function DevinBoard({ fixes }: { fixes: FixSession[] }) {
             <th>Status</th>
             <th>Pull request</th>
             <th>Summary</th>
-            <th className="num">Units used</th>
+            <th className="num">Devin units</th>
           </tr>
         </thead>
         <tbody>
@@ -54,7 +56,7 @@ export default function DevinBoard({ fixes }: { fixes: FixSession[] }) {
                 <div className="cell">
                 <span className={`status status-${fix.status}`}>
                   {fix.status === "working" && <span className="live-dot" aria-hidden="true" />}
-                  {fix.status}
+                  {FIX_STATUS_WORDS[fix.status] ?? fix.status}
                 </span>
               </div>
               </td>
@@ -70,9 +72,9 @@ export default function DevinBoard({ fixes }: { fixes: FixSession[] }) {
               </div>
               </td>
               <td data-label="Summary">
-                <div className="cell">{fix.summary || <span className="muted">—</span>}</div>
+                <div className="cell">{fix.summary ? fixSummary(fix.summary) : <span className="muted">—</span>}</div>
               </td>
-              <td data-label="Units used" className="num">
+              <td data-label="Devin units" className="num">
                 <div className="cell">
                 {formatUnits(fix.acus || 0)}
               </div>

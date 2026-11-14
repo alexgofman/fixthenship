@@ -1,8 +1,18 @@
-import { STAGES, type Stage } from "@/lib/types";
+import { STAGE_WORDS, stageWords } from "../lib/plainWords";
+import { STAGES, type FixSession, type Stage } from "../lib/types";
+import { plainError } from "./findingDisplay";
 
 const STEPS: Stage[] = STAGES.filter((s) => s !== "failed");
 
-export default function Timeline({ stage, error }: { stage: Stage; error: string }) {
+export default function Timeline({
+  stage,
+  error,
+  fixes = [],
+}: {
+  stage: Stage;
+  error: string;
+  fixes?: Pick<FixSession, "status">[];
+}) {
   const failed = stage === "failed";
   const current = STEPS.indexOf(stage);
   const done = stage === "done";
@@ -11,10 +21,10 @@ export default function Timeline({ stage, error }: { stage: Stage; error: string
     <section className="timeline-wrap" aria-label="Run progress">
       <p className="timeline-caption">
         {failed ? (
-          <>Stopped</>
+          <>{STAGE_WORDS.failed}</>
         ) : (
           <>
-            Step {current + 1} of {STEPS.length} · <strong>{stage}</strong>
+            Step {current + 1} of {STEPS.length} · <strong>{stageWords(stage, fixes)}</strong>
           </>
         )}
       </p>
@@ -26,15 +36,15 @@ export default function Timeline({ stage, error }: { stage: Stage; error: string
               <span className="timeline-marker" aria-hidden="true">
                 {state === "past" || (done && state === "current") ? "✓" : i + 1}
               </span>
-              <span className="timeline-label">{s}</span>
+              <span className="timeline-label">{STAGE_WORDS[s]}</span>
             </li>
           );
         })}
       </ol>
-      {failed && (
-        <div className="timeline-error" role="alert">
-          <strong>failed</strong>
-          <span>{error || "The run stopped without an error message."}</span>
+      {(failed || error) && (
+        <div className="timeline-error" role={failed ? "alert" : "status"}>
+          {failed && <strong>{STAGE_WORDS.failed}</strong>}
+          <span>{error ? plainError(error) : "The run stopped without an error message."}</span>
         </div>
       )}
     </section>

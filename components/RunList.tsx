@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { stageWords } from "@/lib/plainWords";
 import type { Run } from "@/lib/types";
 import { countFindings, formatDateTime, isInProgress, runName } from "./findingDisplay";
 
@@ -37,7 +38,7 @@ export default function RunList({ initialRuns }: { initialRuns: Run[] }) {
                 <span className="run-card-name">{runName(run)}</span>
                 <span className={`stage-chip stage-${run.stage}`}>
                   {isInProgress(run.stage) && <span className="live-dot" aria-hidden="true" />}
-                  {run.stage}
+                  {stageWords(run.stage, run.fixes)}
                 </span>
               </div>
               <span className="run-card-url">{run.appUrl}</span>
