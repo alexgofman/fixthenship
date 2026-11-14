@@ -117,7 +117,7 @@ describe("runChecks", () => {
     );
     expect(calls[0].env).toMatchObject({
       APP_URL: "https://app.test",
-      TEST_EMAIL: "reviewer+abc@example.com",
+      TEST_EMAIL: "reviewer+abc.r1@example.com",
       TEST_PASSWORD: "pw",
       CHECK_OUT_DIR: path.join(dir, "R1"),
     });

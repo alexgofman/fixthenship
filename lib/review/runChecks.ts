@@ -146,7 +146,8 @@ async function runOne(
       env: {
         ...process.env,
         APP_URL: appUrl,
-        TEST_EMAIL: env.email,
+        // One account per check: a second check must not find the first one's account already registered.
+        TEST_EMAIL: env.email.replace("@", `.${ruleId.toLowerCase()}@`),
         TEST_PASSWORD: env.password,
         CHECK_OUT_DIR: dest,
       },
