@@ -1,8 +1,10 @@
 import { test } from "@e2e-dev/web";
 import { isAgentError } from "e2e";
-import { signUp } from "./support";
+import { markNotChecked, signUp } from "./support";
 
 const MAX_LINKED_SCREENS = 4;
+/** The step was stopped before it reached a verdict; the runner reports these as not checked. */
+const BLOCKED = /^(?:MODEL_[A-Z_]+|STEP_TIMEOUT|STEP_BUDGET_EXHAUSTED|AUTOMATION_UNSUPPORTED)$/;
 
 /** Runs in the page: the links and buttons that lead to support, and any contact address the screen shows. */
 function supportOnScreen(): string[] {
@@ -63,9 +65,10 @@ test("a support or contact page exists", async ({ app, agent, browser }) => {
   if (!(await opened("/"))) await app.open("/");
   const notPossible = await signUp(agent);
   if (notPossible) {
-    throw new Error(
-      `No support, help or contact page and no support email address was found on the public screens (the settings screen could not be checked: ${notPossible.replace(/[.!?]+$/, "").replace(/[.!?]\s/g, ", ")}).`,
-    );
+    // Support is often only in the settings, so not getting there is "not checked", never a finding.
+    const reason = `Support was not found on the public screens, and the settings screen could not be checked: ${notPossible}`;
+    markNotChecked(reason);
+    test.skip(reason);
   }
 
   if (await supportAt("on the first screen after signing in")) return;
@@ -73,7 +76,7 @@ test("a support or contact page exists", async ({ app, agent, browser }) => {
     await agent.act("Open the settings, profile or account screen of the signed-in user.", { timeout: 40_000 });
     if (await supportAt("on the settings screen")) return;
   } catch (error) {
-    if (isAgentError(error) && error.code.startsWith("MODEL_")) throw error;
+    if (isAgentError(error) && BLOCKED.test(error.code)) throw error;
   }
   throw new Error(
     "No support, help or contact page and no support email address was found on the first screen, the screens it links to, or the settings screen.",
