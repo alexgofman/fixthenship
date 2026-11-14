@@ -95,6 +95,39 @@ function byRule(a: Finding, b: Finding): number {
   return RULE_IDS.indexOf(a.ruleId) - RULE_IDS.indexOf(b.ruleId);
 }
 
+/** Clones the repository and returns its scan findings, in rule order. */
+async function scanCode(repoUrl: string, runDir: string, deps: ReviewDeps): Promise<Finding[]> {
+  const repoDir = path.join(runDir, "repo");
+  await deps.clone(repoUrl, repoDir);
+  return [...(await deps.scan(repoDir))].sort(byRule);
+}
+
+/** The check result an app finding was made from, so scan findings can be folded in after the checks. */
+function resultOf(f: Finding): CheckResult {
+  const outcome = f.state === "pass" ? "pass" : f.state === "fail" ? "fail" : "not_checked";
+  return { ruleId: f.ruleId, outcome, reason: f.detail, steps: [], screenshots: [] };
+}
+
+/**
+ * Saves the repository on a run reviewed without code and scans it. Scan findings are merged with
+ * the app findings already on the run the same way the first review merges them.
+ */
+export async function addRepo(runId: string, repoUrl: string, overrides: Partial<ReviewDeps> = {}): Promise<Run> {
+  const deps = { ...defaultDeps, ...overrides };
+  const run = await loadRun(runId);
+  run.repoUrl = repoUrl;
+  await saveRun(run);
+
+  let findings = await scanCode(repoUrl, path.join(runsDir(), runId), deps);
+  for (const f of run.findings) {
+    findings = f.source === "code" ? findings : applyCheckResult(findings, resultOf(f), f.evidence);
+  }
+  const latest = await loadRun(runId);
+  latest.findings = findings.sort(byRule);
+  await saveRun(latest);
+  return latest;
+}
+
 export async function reviewApp(runId: string, overrides: Partial<ReviewDeps> = {}): Promise<void> {
   const deps = { ...defaultDeps, ...overrides };
   let run: Run | undefined;
@@ -107,9 +140,8 @@ export async function reviewApp(runId: string, overrides: Partial<ReviewDeps> = 
     run.error = "";
     await saveRun(run);
 
-    const repoDir = path.join(runDir, "repo");
-    await deps.clone(run.repoUrl, repoDir);
-    run.findings = [...(await deps.scan(repoDir))].sort(byRule);
+    // Without a repository the review uses the app only.
+    run.findings = run.repoUrl ? await scanCode(run.repoUrl, runDir, deps) : [];
     await saveRun(run);
 
     run.stage = "checking";

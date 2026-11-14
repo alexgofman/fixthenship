@@ -45,6 +45,7 @@ export async function saveRun(run: Run): Promise<void> {
   await rename(tmp, file);
 }
 
+/** `repoUrl` may be empty: the review then uses the running app only. */
 export async function createRun(repoUrl: string, appUrl: string): Promise<Run> {
   const run: Run = {
     id: randomUUID(),

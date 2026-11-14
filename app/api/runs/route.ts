@@ -23,8 +23,8 @@ async function readFields(request: Request): Promise<{ repoUrl: string; appUrl: 
 
 export async function POST(request: Request) {
   const { repoUrl, appUrl, isJson } = await readFields(request);
-  if (!repoUrl || !appUrl) {
-    return Response.json({ error: "repoUrl and appUrl are required" }, { status: 400 });
+  if (!appUrl) {
+    return Response.json({ error: "appUrl is required" }, { status: 400 });
   }
 
   const run = await createRun(repoUrl, appUrl);

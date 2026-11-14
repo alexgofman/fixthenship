@@ -2,8 +2,8 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { REVIEW_RULES, reviewApp, type ReviewDeps } from "../../lib/review/pipeline";
-import { createRun, loadRun } from "../../lib/store";
+import { REVIEW_RULES, addRepo, reviewApp, type ReviewDeps } from "../../lib/review/pipeline";
+import { createRun, loadRun, saveRun } from "../../lib/store";
 import type { CheckResult, Finding, RuleId } from "../../lib/types";
 
 let dir: string;
@@ -112,5 +112,60 @@ describe("reviewApp", () => {
     const saved = await loadRun(run.id);
     expect(saved.stage).toBe("failed");
     expect(saved.error).toBe("Repository not found");
+  });
+
+  it("reviews the app without cloning when the run has no repository", async () => {
+    const run = await createRun("", "https://app.test");
+    const clone = vi.fn(noClone);
+    const scan = vi.fn(async () => [scanFinding("R5")]);
+    await reviewApp(run.id, {
+      clone,
+      scan,
+      waitForApp: async () => true,
+      runChecks: async (_appUrl, _outDir, ruleIds, options) => {
+        const result: CheckResult = { ruleId: "R2", outcome: "fail", reason: "Lorem ipsum.", steps: [], screenshots: [] };
+        await options.onResult?.(result);
+        return [result];
+      },
+    });
+
+    const saved = await loadRun(run.id);
+    expect(saved.stage).toBe("reviewed");
+    expect(clone).not.toHaveBeenCalled();
+    expect(scan).not.toHaveBeenCalled();
+    expect(saved.findings).toEqual([expect.objectContaining({ ruleId: "R2", source: "app", state: "fail" })]);
+  });
+});
+
+describe("addRepo", () => {
+  it("saves the repository and merges its scan findings like the first review", async () => {
+    const run = await createRun("", "https://app.test");
+    const shot = { kind: "screenshot" as const, path: "checks/R5/shot.png", caption: "shot" };
+    run.stage = "reviewed";
+    run.findings = [
+      { ...scanFinding("R1", "pass"), source: "app", evidence: [], detail: "R1 loads." },
+      { ...scanFinding("R5"), source: "app", evidence: [shot], detail: "No privacy link." },
+      { ...scanFinding("R6", "not_checked"), source: "app", evidence: [], detail: "Sign-up failed." },
+    ];
+    await saveRun(run);
+
+    const clone = vi.fn(noClone);
+    const saved = await addRepo(run.id, "https://github.com/o/r", {
+      clone,
+      scan: async () => [scanFinding("R5"), scanFinding("R6"), scanFinding("R10")],
+    });
+
+    expect(clone).toHaveBeenCalledWith("https://github.com/o/r", path.join(dir, run.id, "repo"));
+    expect(saved.repoUrl).toBe("https://github.com/o/r");
+    expect(saved.stage).toBe("reviewed");
+    expect(saved.findings.map((f) => f.ruleId)).toEqual(["R1", "R5", "R6", "R10"]);
+    const byRule = Object.fromEntries(saved.findings.map((f) => [f.ruleId, f]));
+    expect(byRule.R1).toMatchObject({ source: "app", state: "pass" });
+    expect(byRule.R5).toMatchObject({ source: "both", state: "fail", confidence: "high" });
+    expect(byRule.R5.evidence.map((e) => e.kind)).toEqual(["code", "screenshot"]);
+    expect(byRule.R6).toMatchObject({ source: "code", state: "fail" });
+    expect(byRule.R6.detail).toContain("Sign-up failed.");
+    expect(byRule.R10).toEqual(scanFinding("R10"));
+    expect(await loadRun(run.id)).toEqual(saved);
   });
 });
