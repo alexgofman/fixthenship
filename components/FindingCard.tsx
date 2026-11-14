@@ -1,9 +1,9 @@
-import { PLAIN_WORDS } from "@/lib/plainWords";
-import type { Finding } from "@/lib/types";
+import { PLAIN_WORDS } from "../lib/plainWords";
+import type { Finding } from "../lib/types";
 import Evidence from "./Evidence";
 import EvidenceDetails from "./EvidenceDetails";
 import StatePill from "./StatePill";
-import { displayFor, initialDisplay, type Display } from "./findingDisplay";
+import { displayFor, findingDetail, headingsFor, initialDisplay, NOT_CHECKED_LINE, type Display } from "./findingDisplay";
 
 const SOURCE_LABEL: Record<Finding["source"], string> = {
   code: "the code",
@@ -26,7 +26,7 @@ export default function FindingCard({
   const shots = finding.evidence.filter((e) => !("file" in e) && e.kind === "screenshot");
   const others = finding.evidence.filter((e) => !shots.includes(e));
   const plain = PLAIN_WORDS[finding.ruleId];
-  const passed = display.tone === "green" && finding.state === "pass";
+  const headings = headingsFor(finding, display);
 
   return (
     <article className={`finding finding-${display.tone}`}>
@@ -37,8 +37,14 @@ export default function FindingCard({
       <h3 className="finding-title">{finding.title}</h3>
 
       <dl className="plain">
+        {headings.notChecked && (
+          <div>
+            <dt>Not checked</dt>
+            <dd>{NOT_CHECKED_LINE}</dd>
+          </div>
+        )}
         <div>
-          <dt>{passed ? "What reviewers reject" : "The problem"}</dt>
+          <dt>{headings.problem}</dt>
           <dd>{plain.problem}</dd>
         </div>
         <div>
@@ -46,7 +52,7 @@ export default function FindingCard({
           <dd>{plain.whyAppleCares}</dd>
         </div>
         <div>
-          <dt>{passed ? "How it gets fixed" : "What we do"}</dt>
+          <dt>{headings.fix}</dt>
           <dd>{plain.whatWeDo}</dd>
         </div>
       </dl>
@@ -58,7 +64,7 @@ export default function FindingCard({
       )}
 
       <EvidenceDetails openOnWide={display.tone === "red"}>
-        <p className="finding-detail">{finding.detail}</p>
+        <p className="finding-detail">{findingDetail(finding)}</p>
         {finding.evidence.length > 0 && (
           <div className="evidence">
             <p className="evidence-heading">Evidence</p>

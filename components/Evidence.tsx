@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Evidence as EvidenceItem } from "@/lib/types";
-import { runFileUrl } from "./findingDisplay";
+import { cleanReason, runFileUrl } from "./findingDisplay";
 
 function Screenshot({ src, caption }: { src: string; caption: string }) {
   const [broken, setBroken] = useState(false);
@@ -62,20 +62,20 @@ export default function Evidence({
         ) : (
           <code className="mono">{ref}</code>
         )}
-        <span className="evidence-caption">{item.caption}</span>
+        <span className="evidence-caption">{cleanReason(item.caption)}</span>
       </div>
     );
   }
 
   const src = runFileUrl(runId, item.path);
-  if (item.kind === "screenshot") return <Screenshot src={src} caption={item.caption} />;
+  const caption = cleanReason(item.caption);
+  if (item.kind === "screenshot") return <Screenshot src={src} caption={caption} />;
 
   return (
     <div className="evidence-log">
       <a href={src} target="_blank" rel="noreferrer">
-        {item.caption || item.path}
+        {caption || "Open the log"}
       </a>
-      <span className="evidence-caption mono">{item.path}</span>
     </div>
   );
 }
