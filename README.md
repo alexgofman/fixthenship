@@ -52,6 +52,8 @@ Frames from the demo video, recorded on a real run on 14 November 2026.
 5. **We check again.** We merge those pull requests, run the fixed app and repeat the checks. The re-check reuses installed packages when the dependency list is the same. Every finding ends as fixed and verified, needs you, or still failing.
 6. **Before you submit.** The ready page lists twenty things only the developer can see, such as the screenshots, the App Store Connect listing and the demo account.
 
+Our checks were written against Apple's App Review Guidelines as they read on 14 November 2026, kept as one fingerprint per numbered section in `lib/content/guidelines-snapshot.json`. When a review starts we read Apple's page again, without holding up the review, and a line under the run's heading says whether the sections behind our checks have changed since then, or that the page could not be reached.
+
 ## Why you can trust the result
 
 - Devin does not mark its own work. Our own checks run again on the fixed app.
