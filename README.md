@@ -4,7 +4,7 @@ FixThenShip reviews an AI-built web app the way Apple's App Store reviewer would
 
 Website and a saved copy of a real review: https://fixthenship.netlify.app
 
-Watch the 78-second demo: https://fixthenship.netlify.app/#watch (the file itself: https://fixthenship.netlify.app/demo.mp4)
+Watch the 96-second demo: https://fixthenship.netlify.app/#watch (the file itself: https://fixthenship.netlify.app/demo.mp4)
 
 Built in one day at Eurasian Hack London, 14 November 2026.
 
