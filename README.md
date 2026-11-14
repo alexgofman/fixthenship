@@ -32,7 +32,7 @@ AI app builders made building an app easy. App Review is where people get stuck,
 
 - Devin does not mark its own work. Our own checks run again on the fixed app.
 - A check that could not tell is reported as not checked, never as a problem.
-- Two rules can never end green: Sign in with Apple and in-app purchase. They need the developer's own Apple keys or purchase setup.
+- Three rules never end green: Sign in with Apple, in-app purchase and the builder's badge. The first two need the developer's own Apple keys or purchase setup; the badge is added by the builder's hosting, not your code.
 - The wording is always "likely" and "risk". Apple makes the decision.
 
 ```mermaid
@@ -99,7 +99,7 @@ From `lib/rules.ts`.
 | R7 | 4.8 | Third-party login comes with an Apple option | partly |
 | R8 | 3.1.1 | Digital goods are not sold through outside checkout | partly |
 | R9 | 1.5 | A support or contact page exists | yes |
-| R10 | 4.2.6 | No app-builder badge or default branding | yes |
+| R10 | 4.2.6 | No app-builder badge or default branding | partly |
 | R11 | 5.1.2(i) | No tracking or third-party AI calls before consent | partly |
 | R12 | 1.2 | User content can be reported and blocked | yes |
 | R13 | 4.2 | "Just a website" risk | no |
