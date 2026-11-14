@@ -1,3 +1,4 @@
+import type { GuidelinesCheck } from "./guidelines/freshness";
 export const STAGES = [
   "scanning",
   "checking",
@@ -109,4 +110,6 @@ export type Run = {
   checked?: Partial<Record<RuleId, CheckOutcome>>;
   /** Apple's rejection message as the user pasted it; shown back only as plain text. */
   rejectionText?: string;
+  /** Whether Apple's guidelines page changed since our checks were written, read when the review started. */
+  guidelines?: GuidelinesCheck;
 };

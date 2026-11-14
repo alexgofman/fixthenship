@@ -3,7 +3,8 @@ import { execFile } from "node:child_process";
 import { access, mkdir, rm } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
-import { loadRun, runsDir, saveRun } from "../store";
+import { checkGuidelines, type GuidelinesCheck } from "../guidelines/freshness";
+import { loadRun, runsDir, saveRun, updateRun } from "../store";
 import { RULE_IDS, type CheckResult, type Evidence, type Finding, type RuleId, type Run } from "../types";
 import { applyCheckResult } from "./merge";
 import { runChecks, type RunChecksOptions } from "./runChecks";
@@ -19,6 +20,7 @@ export type ReviewDeps = {
   waitForApp: (appUrl: string, timeoutMs: number) => Promise<boolean>;
   runChecks: (appUrl: string, outDir: string, ruleIds: RuleId[], options: RunChecksOptions) => Promise<CheckResult[]>;
   appTimeoutMs: number;
+  checkGuidelines: () => Promise<GuidelinesCheck>;
 };
 
 /** `--` keeps a repository link that starts with `-` from being read as an option. */
@@ -73,6 +75,7 @@ const defaultDeps: ReviewDeps = {
   waitForApp,
   runChecks,
   appTimeoutMs: APP_TIMEOUT_MS,
+  checkGuidelines: () => checkGuidelines(),
 };
 
 async function exists(file: string): Promise<boolean> {
@@ -165,11 +168,30 @@ export async function reviewApp(runId: string, overrides: Partial<ReviewDeps> = 
   }
 }
 
+/**
+ * Starts reading Apple's guidelines page without waiting for it. The answer goes on `run` (so the review's own
+ * saves keep it) and into the saved run; a failure or no answer leaves the review as it is.
+ */
+function noteGuidelines(run: Run, deps: ReviewDeps): void {
+  void (async () => {
+    try {
+      const guidelines = await deps.checkGuidelines();
+      run.guidelines = guidelines;
+      await updateRun(run.id, (saved) => {
+        saved.guidelines = guidelines;
+      });
+    } catch (error) {
+      console.error(`review ${run.id}: could not note the guidelines check: ${errorMessage(error)}`);
+    }
+  })();
+}
+
 async function review(runId: string, overrides: Partial<ReviewDeps>): Promise<void> {
   const deps = { ...defaultDeps, ...overrides };
   let run: Run | undefined;
   try {
     run = await loadRun(runId);
+    noteGuidelines(run, deps);
     const runDir = path.join(runsDir(), runId);
     const outDir = path.join(runDir, "checks");
 
