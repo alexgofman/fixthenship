@@ -119,11 +119,19 @@ From `lib/rules.ts`.
 | R12 | 1.2 | User content can be reported and blocked | yes |
 | R13 | 4.2 | "Just a website" risk | no |
 
+## What Apple's rulebook looks like from here
+
+Apple's App Review Guidelines have 209 numbered rules (read on 14 November 2026). The ten checks cover 16 of them. Sorted by how a rule could be checked at all, about 53 could be checked by using the running app, 56 by reading the code, 16 from the store listing, 8 only in the native build, 30 can only be reminders, and 46 do not apply to small apps.
+
+The largest gap is guideline 4.2, "a website in a wrapper", which no tool can pass or fail. It is on the checklist.
+
 ## Limits
 
-- It tests the web build at iPhone size, not a native build on a device.
+- It tests the web build at iPhone size. Nothing is tested on a native build or a device.
 - The app needs a web version that opens from a link.
 - It covers about ten rules, not the whole App Review Guidelines.
+- It has been run on one sample app.
+- The mascot and the pricing page are in; payments are not.
 - It predicts what a reviewer is likely to flag. Apple makes the decision.
 - Test accounts use a public inbox (mailinator.com) by default, which is fine for demo apps only. Set `TEST_EMAIL_DOMAIN` to a domain whose mail you own for anything with real data.
 - The re-check starts the fixed app with `npm run dev`, so the repository must have a `dev` script that starts it.
@@ -141,4 +149,13 @@ From `lib/rules.ts`.
 
 ## How this was built
 
-<filled in at submission from BUILDLOG.md>
+Built on 14 November 2026 between 10:00 and 14:45 at Eurasian Hack London. The design and the plan were written the day before, as the rules allow; no code existed before 10:00.
+
+- **Devin (Cognition) wrote the product.** 23 build sessions, started through the Devin API from written briefs that each own a set of files, up to six at once on one branch. Devin is also the fixer inside the product: one session per finding, seven at once on the sample app.
+- **Claude Code (Anthropic) wrote the design, the plan and every brief, reviewed every push, ran every check on a real app, and made small fixes itself.** Each of those is in `BUILDLOG.md`. Separate Claude Code sessions built the marketing website, the mascot and the demo video.
+- **Two independent reviews** of the code, one by a Devin session on its strongest mode and one by a panel of Claude agents with a skeptic for each finding, produced 39 confirmed findings. Six Devin sessions fixed them within the hour.
+- **Lovable built the sample app** that the product reviews, deliberately left with the problems a first-time builder leaves.
+- **The e2e test tool** runs the reviewer checks in a phone-size browser, with Google's Gemini judging the plain-English steps.
+- **Research** for the checklist and the rejection decoder: Apple's App Review Guidelines read in full on the day (209 numbered rules), with a second pass that checked every guideline number used in the product against Apple's page.
+
+What went wrong is in `BUILDLOG.md` too: checks that passed Devin's own tests and failed on a real app, two security problems that an independent check caught, a re-check that was wrong twice, a fix that hid Lovable's badge with CSS, and a free model key that ran out at noon.
