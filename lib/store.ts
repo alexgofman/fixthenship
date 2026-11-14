@@ -1,4 +1,5 @@
-import { randomUUID } from "node:crypto";
+import { AsyncLocalStorage } from "node:async_hooks";
+import { randomBytes, randomUUID } from "node:crypto";
 import { mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { Run } from "./types";
@@ -37,12 +38,51 @@ async function ensureExampleRun(): Promise<void> {
   }
 }
 
-export async function saveRun(run: Run): Promise<void> {
+const queues = new Map<string, Promise<unknown>>();
+/** The run ids whose queue the current async call already holds, so nested calls do not wait on themselves. */
+const held = new AsyncLocalStorage<ReadonlySet<string>>();
+
+/**
+ * Runs `task` after every earlier task queued for the same run, so a load-change-save of one run cannot
+ * overwrite another's. A task that is already inside the run's queue runs straight away.
+ */
+export function withRunQueue<T>(runId: string, task: () => Promise<T>): Promise<T> {
+  const holding = held.getStore();
+  if (holding?.has(runId)) return task();
+  const run = () => held.run(new Set([...(holding ?? []), runId]), task);
+  const previous = queues.get(runId) ?? Promise.resolve();
+  const result = previous.then(run, run);
+  const tail = result.then(
+    () => {},
+    () => {},
+  );
+  queues.set(runId, tail);
+  void tail.then(() => {
+    if (queues.get(runId) === tail) queues.delete(runId);
+  });
+  return result;
+}
+
+async function writeRun(run: Run): Promise<void> {
   const file = runFile(run.id);
   await mkdir(path.dirname(file), { recursive: true });
-  const tmp = `${file}.${process.pid}.${Date.now()}.tmp`;
+  const tmp = `${file}.${process.pid}.${randomBytes(8).toString("hex")}.tmp`;
   await writeFile(tmp, JSON.stringify(run, null, 2) + "\n", "utf8");
   await rename(tmp, file);
+}
+
+export function saveRun(run: Run): Promise<void> {
+  return withRunQueue(run.id, () => writeRun(run));
+}
+
+/** Loads the latest saved run, applies `change` and saves it, all inside the run's queue. */
+export function updateRun(runId: string, change: (run: Run) => void | Promise<void>): Promise<Run> {
+  return withRunQueue(runId, async () => {
+    const run = await loadRun(runId);
+    await change(run);
+    await writeRun(run);
+    return run;
+  });
 }
 
 /** `repoUrl` may be empty: the review then uses the running app only. */
