@@ -87,9 +87,12 @@ async function npmInstall(exec: ExecFn, dir: string, env: NodeJS.ProcessEnv): Pr
 
 const DEPENDENCY_FILES = ["package.json", "package-lock.json", "npm-shrinkwrap.json", "bun.lock", "bun.lockb", "yarn.lock", "pnpm-lock.yaml"];
 
-/** The same dependency lists give the same key, whatever else in the repository changed. */
-export async function dependencyKey(dir: string): Promise<string> {
-  const hash = createHash("sha256");
+/**
+ * One repository's dependency lists give one key, whatever else in it changed. The repository is part of
+ * the key so that one app can never hand its installed packages to another.
+ */
+export async function dependencyKey(dir: string, repoUrl = ""): Promise<string> {
+  const hash = createHash("sha256").update(repoUrl.trim().toLowerCase()).update("\0");
   for (const name of DEPENDENCY_FILES) {
     const content = await readFile(path.join(dir, name)).catch(() => null);
     if (content) hash.update(name).update("\0").update(content).update("\0");
@@ -112,9 +115,12 @@ function copyModules(from: string, to: string): Promise<void> {
  * of a re-check. The kept copy is taken right after the install, before the app's own code has run, and the
  * app only ever gets a copy of it.
  */
-async function installDependencies(exec: ExecFn, dir: string, env: NodeJS.ProcessEnv): Promise<void> {
-  const kept = path.join(installCacheDir(await dependencyKey(dir)), "node_modules");
+async function installDependencies(exec: ExecFn, dir: string, env: NodeJS.ProcessEnv, repoUrl: string): Promise<void> {
+  const kept = path.join(installCacheDir(await dependencyKey(dir, repoUrl)), "node_modules");
   const modules = path.join(dir, "node_modules");
+  // A repository that ships its own node_modules gets none of it: only what npm installs is ever run or kept.
+  const shippedModules = await exists(modules);
+  if (shippedModules) await rm(modules, { recursive: true, force: true });
   if (await exists(kept)) {
     try {
       await copyModules(kept, modules);
@@ -125,7 +131,7 @@ async function installDependencies(exec: ExecFn, dir: string, env: NodeJS.Proces
     }
   }
   await npmInstall(exec, dir, { ...env, npm_config_cache: path.join(runsDir(), ".npm-cache") });
-  if (!(await exists(modules))) return;
+  if (shippedModules || !(await exists(modules))) return;
   const staging = `${kept}.${randomBytes(4).toString("hex")}.tmp`;
   try {
     await mkdir(path.dirname(kept), { recursive: true });
@@ -582,7 +588,7 @@ export async function recheckApp(runId: string, overrides: Partial<RecheckDeps> 
           });
           home = await mkdtemp(path.join(os.tmpdir(), "fts-recheck-home-"));
           const env = await appEnv(repoDir, home);
-          await installDependencies(deps.execFile, repoDir, env);
+          await installDependencies(deps.execFile, repoDir, env, run.repoUrl);
           await startApp(repoDir, env, deps, app);
         } catch (err) {
           throw err instanceof BranchMissingError ? err : new StartError(errorMessage(err));

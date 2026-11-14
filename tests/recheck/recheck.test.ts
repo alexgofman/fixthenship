@@ -1,6 +1,6 @@
 import type { ChildProcess, ExecFileOptions, SpawnOptions } from "node:child_process";
 import { EventEmitter } from "node:events";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { PassThrough } from "node:stream";
@@ -650,6 +650,34 @@ describe("recheckApp", () => {
       runChecks: checksWith(),
     });
     expect(third.installs).toHaveLength(1);
+  });
+
+  it("never runs or keeps a node_modules folder that came with the repository", async () => {
+    const shipsModules = async (_url: string, _branch: string, dest: string) => {
+      await mkdir(path.join(dest, "node_modules", "evil"), { recursive: true });
+      await writeFile(path.join(dest, "node_modules", "evil", "index.js"), "planted\n");
+      await writeFile(path.join(dest, "package.json"), '{"name":"acme","dependencies":{"left-pad":"1.3.0"}}');
+    };
+    await makeRun([finding("R2")]);
+    const seen: boolean[] = [];
+    const first = harness();
+    await recheckApp("run1", {
+      ...first.deps,
+      clone: shipsModules,
+      execFile: async (file, args, options) => {
+        // By the time npm runs, the shipped folder is gone.
+        seen.push(await access(path.join(String(options.cwd), "node_modules", "evil")).then(() => true, () => false));
+        await first.deps.execFile!(file, args, options);
+        await mkdir(path.join(String(options.cwd), "node_modules", "left-pad"), { recursive: true });
+      },
+      runChecks: checksWith(),
+    });
+    expect(seen).toEqual([false]);
+
+    // Nothing was kept from a repository that shipped its own, so the next re-check installs again.
+    const second = harness();
+    await recheckApp("run1", { ...second.deps, clone: shipsModules, runChecks: checksWith() });
+    expect(second.installs).toHaveLength(1);
   });
 
   it("passes none of this process's secrets to npm install or the app", async () => {
