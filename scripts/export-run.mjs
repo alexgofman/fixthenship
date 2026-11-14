@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Usage: node scripts/export-run.mjs <runId | path/to/run.json> <outDir>
 // Writes a static, script-free copy of one finished run: index.html plus its screenshots and logs.
+// The styles are read from app/globals.css and components/plain.css at export time.
 import { copyFile, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -15,10 +16,12 @@ process.emitWarning = (warning, ...rest) => {
   if (code === "MODULE_TYPELESS_PACKAGE_JSON") return;
   return emitWarning.call(process, warning, ...rest);
 };
-const { displayFor, formatDate, initialDisplay, isRechecked, repoName, runName, sortFindings, summaryLine } = await import(
+const { displayFor, formatDate, initialDisplay, isRechecked, rejectionSentence, repoName, runName, sortFindings, summaryLine } =
+  await import(
   "../components/findingDisplay.ts"
 );
 const { RULES } = await import("../lib/rules.ts");
+const { PLAIN_WORDS } = await import("../lib/plainWords.ts");
 process.emitWarning = emitWarning;
 
 /** Same text as NOTE_LINES in components/ReadyReport.tsx (a test keeps them in step). */
@@ -40,11 +43,15 @@ const NOTE_LINES = {
 
 const SOURCE_LABEL = { code: "the code", app: "the running app", both: "the code and the running app" };
 
+export const SAVED_COPY_LINE = "A saved copy of a real FixThenShip review. Nothing on this page is live.";
+
+const STYLE_FILES = [path.join("app", "globals.css"), path.join("components", "plain.css")];
+
 const EXTRA_CSS = `
+.export-banner { margin: 0; padding: 10px 20px; text-align: center; font-size: 14px; color: var(--muted);
+  border-bottom: 1px solid var(--border); }
 .export-note { color: var(--muted); font-size: 13px; }
 .ready-list { list-style: none; padding: 0; margin: 0; }
-.ready-check { display: flex; gap: 12px; align-items: flex-start; }
-.ready-check input { width: 20px; height: 20px; margin-top: 4px; flex: none; }
 .ready-notes { margin: 0; padding: 16px 18px; background: #fffefb; border: 1px solid var(--border);
   border-radius: var(--radius); font-family: var(--mono); font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
 `;
@@ -153,16 +160,53 @@ function evidenceBlock(items, run, copied, heading) {
   }</div>`;
 }
 
+function shotsGroup(items, run, copied, heading) {
+  if (items.length === 0) return "";
+  return `${heading ? `<p class="evidence-heading">${esc(heading)}</p>` : ""}<div class="evidence-shots">${items
+    .map((e) => evidenceHtml(e, run, copied))
+    .join("")}</div>`;
+}
+
+/** Evidence as on the run page; screenshots are split into before and after the fix when both exist. */
+function findingEvidence(f, run, copied) {
+  if (f.evidence.length === 0) return "";
+  const isShot = (e) => !("file" in e) && e.kind === "screenshot";
+  const after = new Set(afterFixEvidence(f));
+  const shots = f.evidence.filter(isShot);
+  const others = f.evidence.filter((e) => !isShot(e));
+  const before = shots.filter((e) => !after.has(e));
+  const afterShots = shots.filter((e) => after.has(e));
+  const split = before.length > 0 && afterShots.length > 0;
+  const shotHtml = split
+    ? shotsGroup(before, run, copied, "Before the fix") + shotsGroup(afterShots, run, copied, "After the fix")
+    : shotsGroup(shots, run, copied, "");
+  return `<div class="evidence"><p class="evidence-heading">Evidence</p>${others.map((e) => evidenceHtml(e, run, copied)).join("")}${shotHtml}</div>`;
+}
+
+function plainWords(f, passed) {
+  const plain = PLAIN_WORDS[f.ruleId];
+  if (!plain) return "";
+  const row = (term, text) => `<div><dt>${esc(term)}</dt><dd>${esc(text)}</dd></div>`;
+  return `<dl class="plain">${row(passed ? "What reviewers reject" : "The problem", plain.problem)}${row("Why Apple cares", plain.whyAppleCares)}${row(
+    passed ? "How it gets fixed" : "What we do",
+    plain.whatWeDo,
+  )}</dl>`;
+}
+
 function findingCard(f, run, copied) {
   const display = displayFor(f);
   const first = initialDisplay(f.state);
   const changed = f.finalState !== "" && first.label !== display.label;
+  const passed = display.tone === "green" && f.state === "pass";
   return `<article class="finding finding-${display.tone}">
 <header class="finding-head"><span class="guideline-badge">Guideline ${esc(f.guideline)}</span>${pill(display)}</header>
 <h3 class="finding-title">${esc(f.title)}</h3>
-<p class="finding-detail">${esc(f.detail)}</p>
+${plainWords(f, passed)}
 ${display.note ? `<p class="human-step"><strong>Needs you:</strong> ${esc(display.note)}</p>` : ""}
-${evidenceBlock(f.evidence, run, copied, "Evidence")}
+<details class="evidence-details" open><summary>Show the evidence</summary><div class="evidence-body">
+<p class="finding-detail">${esc(f.detail)}</p>
+${findingEvidence(f, run, copied)}
+</div></details>
 <footer class="finding-meta"><span>Confidence: <strong>${esc(f.confidence)}</strong></span><span>Checked in ${esc(SOURCE_LABEL[f.source] ?? f.source)}</span>${
     changed ? `<span>First review: <span class="tone-text-${first.tone}">${esc(first.label)}</span></span>` : ""
   }<span class="rule-id">${esc(f.ruleId)}</span></footer>
@@ -179,7 +223,11 @@ function verdictLetter(run, copied) {
 ${run.repoUrl ? `<div><dt>Repository</dt><dd>${link(run.repoUrl, esc(run.repoUrl))}</dd></div>` : ""}
 <div><dt>App</dt><dd>${link(run.appUrl, esc(run.appUrl))}</dd></div>
 </dl></header>
-<p class="letter-summary">${esc(summaryLine(run))}</p>
+${
+  isRechecked(run) || run.findings.length === 0
+    ? `<p class="letter-summary">${esc(summaryLine(run))}</p>`
+    : `<p class="letter-summary">${esc(rejectionSentence(run))}</p><p class="letter-counts">${esc(summaryLine(run))}</p>`
+}
 <p class="letter-intro">${
     isRechecked(run)
       ? "We used your app again after the fixes. Each guideline below shows where it stands now."
@@ -253,7 +301,7 @@ function readyReport(run, copied) {
     "Needs you",
     run.findings.filter((f) => f.finalState === "amber"),
     (f) =>
-      `<li class="finding finding-amber"><label class="ready-check"><input type="checkbox"><span><span class="guideline-badge">Guideline ${esc(f.guideline)}</span><strong class="finding-title" style="display:block">${esc(f.title)}</strong><span class="finding-detail">${esc(f.humanStep || f.detail)}</span></span></label></li>`,
+      `<li class="finding finding-amber"><span class="guideline-badge">Guideline ${esc(f.guideline)}</span><strong class="finding-title" style="display:block">${esc(f.title)}</strong><span class="finding-detail">${esc(f.humanStep || f.detail)}</span></li>`,
     true,
   );
   const failing = readySection(
@@ -294,6 +342,7 @@ ${EXTRA_CSS}
 </style>
 </head>
 <body>
+<p class="export-banner">${esc(SAVED_COPY_LINE)}</p>
 <header class="site-header"><div class="site-header-inner"><span class="brand"><span class="brand-mark" aria-hidden="true">✓</span>FixThenShip</span><span class="site-tag">App Review rehearsal</span></div></header>
 <main class="run-page"><div class="run">
 <div class="run-head"><div><p class="eyebrow">Run ${esc(run.id)}</p><h1 class="run-title">${esc(name)}</h1></div></div>
@@ -351,12 +400,18 @@ async function copyEvidence(run, outDir) {
   return copied;
 }
 
+/** The app's own stylesheets, read now so the copy matches whatever they say today. */
+export async function readStyles() {
+  const parts = await Promise.all(STYLE_FILES.map((f) => readFile(path.join(ROOT, f), "utf8")));
+  return parts.map((css, i) => `/* ${STYLE_FILES[i].split(path.sep).join("/")} */\n${css}`).join("\n");
+}
+
 export async function exportRun(arg, outDir) {
   const run = await loadRunArg(arg);
   if (run.stage !== "done") throw new Error(`Run ${run.id} is not finished yet (stage: ${run.stage}).`);
   const out = path.resolve(outDir);
   await mkdir(out, { recursive: true });
-  const css = await readFile(path.join(ROOT, "app", "globals.css"), "utf8");
+  const css = await readStyles();
   const copied = await copyEvidence(run, out);
   const file = path.join(out, "index.html");
   await writeFile(file, renderRunHtml(run, css, copied), "utf8");

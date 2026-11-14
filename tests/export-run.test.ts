@@ -6,7 +6,9 @@ import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { loadExampleRun } from "../lib/store";
 import { NOTE_LINES, reviewNotes } from "../components/ReadyReport";
-import { reviewNotes as exportedNotes } from "../scripts/export-run.mjs";
+import { reviewNotes as exportedNotes, renderRunHtml, SAVED_COPY_LINE } from "../scripts/export-run.mjs";
+import { PLAIN_WORDS } from "../lib/plainWords";
+import { rejectionSentence, summaryLine } from "../components/findingDisplay";
 
 const run = promisify(execFile);
 const SCRIPT = path.join(process.cwd(), "scripts", "export-run.mjs");
@@ -65,5 +67,69 @@ describe("export-run", () => {
     const notes = reviewNotes(example);
     expect(notes.split("\n")[0]).toBe("habit-tracker.example.com is the iPhone version of https://habit-tracker.example.com.");
     expect(exportedNotes(example)).toBe(notes);
+  });
+
+  it("starts with the saved-copy line and has no live parts", async () => {
+    const { html } = await exportExample();
+    const body = html.slice(html.indexOf("<body>"));
+    expect(body.replace(/<[^>]+>/g, "").trim().startsWith(SAVED_COPY_LINE)).toBe(true);
+    expect(html).not.toMatch(/<(form|button|input|textarea|select)\b/i);
+    expect(html).not.toMatch(/\/api\/|setInterval|setTimeout|Refreshes every/);
+    expect(html).not.toMatch(/(src|href)="\//);
+  });
+
+  it("inlines the styles of app/globals.css and components/plain.css", async () => {
+    const { html } = await exportExample();
+    for (const file of ["app/globals.css", "components/plain.css"]) {
+      const css = await readFile(path.join(process.cwd(), file), "utf8");
+      expect(html).toContain(css);
+    }
+  });
+
+  it("shows each finding in plain words and the after-re-check summary", async () => {
+    const example = await loadExampleRun();
+    const { html } = await exportExample();
+    const escape = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    for (const f of example.findings) {
+      expect(html).toContain(escape(PLAIN_WORDS[f.ruleId].problem));
+      expect(html).toContain(escape(PLAIN_WORDS[f.ruleId].whyAppleCares));
+    }
+    expect(html).toContain(escape(summaryLine(example)));
+    for (const fix of example.fixes) {
+      expect(html).toContain(`href="${fix.url}"`);
+      if (fix.prUrl) expect(html).toContain(`href="${fix.prUrl}"`);
+    }
+  });
+
+  it("shows the rejection sentence before the re-check", async () => {
+    const example = await loadExampleRun();
+    const reviewed = { ...example, stage: "reviewed" as const, findings: example.findings.map((f) => ({ ...f, finalState: "" as const })) };
+    const html = renderRunHtml(reviewed, "");
+    expect(html).toContain(rejectionSentence(reviewed));
+    expect(html).toContain("Apple would likely reject this app for");
+  });
+
+  it("splits screenshots into before and after the fix when both exist", async () => {
+    const example = await loadExampleRun();
+    const findings = example.findings.map((f) =>
+      f.ruleId === "R2"
+        ? { ...f, evidence: [...f.evidence, { kind: "screenshot" as const, path: "recheck/r2.png", caption: "After the fix: pricing" }] }
+        : f,
+    );
+    const html = renderRunHtml({ ...example, findings }, "", new Set(["screenshots/r2-pricing.png", "recheck/r2.png"]));
+    const card = html.slice(html.indexOf("No placeholder content"));
+    expect(card.indexOf("Before the fix")).toBeGreaterThan(-1);
+    expect(card.indexOf("Before the fix")).toBeLessThan(card.indexOf('src="screenshots/r2-pricing.png"'));
+    expect(card.indexOf('src="screenshots/r2-pricing.png"')).toBeLessThan(card.indexOf("After the fix"));
+    expect(card.indexOf("After the fix")).toBeLessThan(card.indexOf('src="recheck/r2.png"'));
+  });
+
+  it("uses the app's host when the run has no repository", async () => {
+    const example = { ...(await loadExampleRun()), repoUrl: "" };
+    const html = renderRunHtml(example, "");
+    expect(html).toContain("<title>habit-tracker.example.com · FixThenShip review</title>");
+    expect(html).toContain('<h1 class="run-title">habit-tracker.example.com</h1>');
+    expect(html).toContain("Review of habit-tracker.example.com");
+    expect(html).not.toContain("<dt>Repository</dt>");
   });
 });
