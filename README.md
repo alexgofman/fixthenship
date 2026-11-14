@@ -1,43 +1,74 @@
 # FixThenShip
 
-Reviews an AI-built app the way an App Store reviewer would, starts coding-agent sessions to fix what it finds, and re-checks the result. Results describe likely outcomes and risks, never a guarantee.
+FixThenShip reviews an AI-built web app the way an App Store reviewer would: it reads the code and uses the running app at iPhone size. For each problem it finds, it starts a Devin session that fixes it and opens a pull request. Then it checks the app again and tells you what is fixed, what still needs you, and how likely a reviewer is to flag the rest.
 
-This repository is the skeleton: types, the rules table, a file-based run store, stub API routes and two pages.
+## The loop
+
+1. You give it a GitHub repository and the URL where the app runs.
+2. It scans the code for patterns that often lead to rejection (placeholder text, no account deletion, outside checkout and so on).
+3. It uses the running app like a reviewer, with its own test account, and keeps screenshots and step logs as evidence.
+4. It writes a verdict letter: each guideline, a likely outcome, and the evidence.
+5. "Fix with Devin" starts one Devin session per failing, fixable finding (ten at most); each opens a pull request against the `store-ready` branch.
+6. "Check again" re-runs the checks and sorts every finding into fixed and verified, needs you, still failing or not checked, with notes ready to paste into App Store Connect.
 
 ## Run it
 
-Requires Node 24 and npm.
+Requires Node 24.
 
 ```bash
 npm install
-npm run dev   # http://localhost:3000
-npm test      # Vitest
 ```
 
-Copy `.env.example` to `.env.local` when the real integrations land (not used yet).
+Create `.env.local`:
 
-## Layout
+```bash
+GOOGLE_GENERATIVE_AI_API_KEY=   # model used by the app checks
+MODEL=                          # model id for the app checks
+DEVIN_API_KEY=                  # starts and polls fix sessions
+DEVIN_ORG_ID=
+GITHUB_TOKEN=                   # reads the repository and its pull requests
+```
 
-| Path | What it is |
-|---|---|
-| `lib/types.ts` | `Run`, `Finding`, `Evidence`, `FixSession`, `CheckResult` and their allowed values |
-| `lib/rules.ts` | `RULES`: the thirteen review rules R1 to R13 |
-| `lib/store.ts` | `createRun`, `loadRun`, `saveRun`, `listRuns`; each run is `runs/<runId>/run.json` |
-| `examples/example-run.json` | Example run with eight findings; copied into `runs/example/` on first use |
-| `app/page.tsx` | `/`: review form and list of runs |
-| `app/runs/[runId]/` | `/runs/[runId]`: stage timeline and findings, polls every 3 seconds |
-| `app/api/runs/...` | Stub routes (below) |
+```bash
+npm run dev    # http://localhost:3000
+npm test       # Vitest
+```
 
-## API (stubs)
+Without keys the example run (`examples/example-run.json`) still opens at `/runs/example`.
 
-- `POST /api/runs`: form fields or JSON `repoUrl`, `appUrl`. Creates a run, copies the example findings, sets stage `reviewed`. Form posts redirect to the run page; JSON gets the run back.
-- `GET /api/runs`: all runs, newest first.
-- `GET /api/runs/[runId]`: one run.
-- `POST /api/runs/[runId]/fix`: sets stage `fixing`, then `fixed`.
-- `POST /api/runs/[runId]/recheck`: sets stage `done`.
+To share a finished run as a static page that opens from disk or any static host:
 
-## Notes
+```bash
+node scripts/export-run.mjs <runId> <outDir>
+```
 
-- No database and no sign-in. The `runs/` folder is git-ignored (as `/runs/`, so `app/runs` and `app/api/runs` stay tracked).
-- `RUNS_DIR` overrides where runs are stored; the tests use a temp folder.
-- Next.js 16 with Cache Components: pages read runs inside `<Suspense>` after `connection()`.
+## Rulebook
+
+From `lib/rules.ts`.
+
+| Id | Guideline | What is checked | Fixable |
+|---|---|---|---|
+| R1 | 2.1(a) | The app loads without errors | partly |
+| R2 | 2.1(a) | No placeholder content | yes |
+| R3 | 2.1 | No dead buttons or broken links | yes |
+| R4 | 2.1(a) | The reviewer can get in | partly |
+| R5 | 5.1.1(i) | A privacy policy is reachable in the app | yes |
+| R6 | 5.1.1(v) | An account can be deleted in the app | yes |
+| R7 | 4.8 | Third-party login comes with an Apple option | partly |
+| R8 | 3.1.1 | Digital goods are not sold through outside checkout | partly |
+| R9 | 1.5 | A support or contact page exists | yes |
+| R10 | 4.2.6 | No app-builder badge or default branding | yes |
+| R11 | 5.1.2(i) | No tracking or third-party AI calls before consent | partly |
+| R12 | 1.2 | User content can be reported and blocked | yes |
+| R13 | 4.2 | "Just a website" risk | no |
+
+## Limits
+
+- It tests the web build at iPhone size, not a native build on a device.
+- It covers about ten rules, not the whole App Review Guidelines.
+- It predicts what a reviewer is likely to flag. Apple makes the decision.
+- Test accounts use a public inbox (mailinator.com) by default, which is fine for demo apps only. Set `TEST_EMAIL_DOMAIN` to a domain whose mail you own for anything with real data.
+
+## How this was built
+
+<filled in at submission from BUILDLOG.md>
