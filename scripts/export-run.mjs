@@ -36,6 +36,7 @@ const {
 const { RULES } = await import("../lib/rules.ts");
 const { FIX_STATUS_WORDS, PLAIN_WORDS } = await import("../lib/plainWords.ts");
 process.emitWarning = emitWarning;
+const CHECKLIST = JSON.parse(await readFile(path.join(ROOT, "lib", "content", "checklist.json"), "utf8")).groups;
 
 /** Same text as NOTE_LINES in components/ReadyReport.tsx (a test keeps them in step). */
 const NOTE_LINES = {
@@ -65,6 +66,8 @@ const EXTRA_CSS = `
   border-bottom: 1px solid var(--border); }
 .export-note { color: var(--muted); font-size: 13px; }
 .ready-list { list-style: none; padding: 0; margin: 0; }
+.checklist-list { margin: 0 0 18px; padding-left: 20px; display: grid; gap: 10px; }
+.checklist-list .muted { margin: 2px 0 0; }
 .ready-notes { margin: 0; padding: 16px 18px; background: #fffefb; border: 1px solid var(--border);
   border-radius: var(--radius); font-family: var(--mono); font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
 `;
@@ -295,6 +298,21 @@ function cardHead(f, display = displayFor(f)) {
   return `<header class="finding-head"><span class="guideline-badge">Guideline ${esc(f.guideline)}</span>${pill(display)}</header><h3 class="finding-title">${esc(f.title)}</h3>`;
 }
 
+/** Same title and lead as components/BeforeYouSubmit.tsx; a plain list, nothing to tick. */
+function beforeYouSubmit() {
+  const groups = CHECKLIST.map(
+    (g) => `<h3 style="margin:18px 0 10px;font-size:16px">${esc(g.title)}</h3><ul class="checklist-list">${g.items
+      .map(
+        (i) =>
+          `<li>${esc(i.text)}<p class="muted small">${esc(i.why)}${i.guideline ? ` <span class="mono" style="font-size:12px;white-space:nowrap">Guideline ${esc(i.guideline)}</span>` : ""}</p></li>`,
+      )
+      .join("")}</ul>`,
+  ).join("\n");
+  return `<section class="board" aria-labelledby="ready-before"><div class="section-head"><h2 id="ready-before">Before you submit: what we could not see for you</h2></div>
+<p class="muted small" style="margin-top:0">We checked the app itself. These live in App Store Connect or in your own records, so only you can check them.</p>
+${groups}</section>`;
+}
+
 function readyReport(run, copied) {
   const fixFor = (f) => run.fixes.find((x) => x.ruleId === f.ruleId);
   const fixed = readySection("ready-fixed", "Fixed and verified", run.findings.filter((f) => f.finalState === "green"), (f) => {
@@ -336,7 +354,7 @@ function readyReport(run, copied) {
 <p class="muted small" style="margin-top:0">Paste into App Store Connect, App Review Information, Notes. Fill in the demo account first.</p>
 <pre class="ready-notes">${esc(reviewNotes(run))}</pre></section>`;
   return `<section aria-labelledby="ready-title"><h2 id="ready-title" class="run-title" style="margin-bottom:16px">${hasOpenFindings(run) ? "What is left to do" : "Ready to submit"}</h2>
-${fixed}\n${needs}\n${failing}\n${unchecked}\n${notes}
+${fixed}\n${needs}\n${failing}\n${unchecked}\n${beforeYouSubmit()}\n${notes}
 <p class="refresh-note">FixThenShip predicts what a reviewer is likely to flag. Apple makes the decision.</p></section>`;
 }
 

@@ -8,6 +8,7 @@ import { loadExampleRun } from "../lib/store";
 import { NOTE_LINES, reviewNotes } from "../components/ReadyReport";
 import { reviewNotes as exportedNotes, renderRunHtml, SAVED_COPY_LINE } from "../scripts/export-run.mjs";
 import { PLAIN_WORDS } from "../lib/plainWords";
+import { BEFORE_YOU_SUBMIT_LEAD, BEFORE_YOU_SUBMIT_TITLE, CHECKLIST } from "../components/BeforeYouSubmit";
 import { rejectionSentence, summaryLine } from "../components/findingDisplay";
 
 const run = promisify(execFile);
@@ -173,5 +174,22 @@ describe("export-run", () => {
     for (const m of layout.matchAll(/href="(https:\/\/fonts\.googleapis\.com\/[^"]+)"/g)) {
       expect(html).toContain(`href="${m[1].replace(/&/g, "&amp;")}"`);
     }
+  });
+
+  it("lists what we could not see, before the notes for App Review, without checkboxes", async () => {
+    const html = renderRunHtml(await loadExampleRun(), "");
+    const escape = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    const at = html.indexOf(escape(BEFORE_YOU_SUBMIT_TITLE));
+    expect(at).toBeGreaterThan(html.indexOf(">Not checked<"));
+    expect(at).toBeLessThan(html.indexOf(">Notes for App Review<"));
+    expect(html).toContain(escape(BEFORE_YOU_SUBMIT_LEAD));
+    for (const g of CHECKLIST) {
+      expect(html).toContain(escape(g.title));
+      for (const item of g.items) {
+        expect(html).toContain(escape(item.text));
+        expect(html).toContain(escape(item.why));
+      }
+    }
+    expect(html).not.toMatch(/<input\b/i);
   });
 });
