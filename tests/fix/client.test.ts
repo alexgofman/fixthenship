@@ -96,6 +96,23 @@ describe("Devin client", () => {
     expect(await getSession("d")).toEqual({ status: "error", prUrl: "", summary: "", acus: 5 });
   });
 
+  it("takes the pull request from structured_output.prUrl when pull_requests is empty", async () => {
+    fakeFetch([
+      [
+        "GET /sessions/",
+        () =>
+          json({
+            session_id: "d",
+            url: "u",
+            status: "exit",
+            pull_requests: [],
+            structured_output: { summary: "Added support page", prUrl: "https://github.com/acme/app/pull/9" },
+          }),
+      ],
+    ]);
+    expect(await getSession("d")).toMatchObject({ status: "finished", prUrl: "https://github.com/acme/app/pull/9" });
+  });
+
   it("sends a message to a session", async () => {
     const calls = fakeFetch([["POST /sessions/devin-1/messages", () => json({ session_id: "devin-1" })]]);
     await sendMessage("devin-1", "Merge store-ready");

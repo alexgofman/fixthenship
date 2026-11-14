@@ -3,8 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { baseBranch, buildFixBrief } from "../../lib/fix/brief";
-import { mentionsRule } from "../../lib/fix/pollFixes";
-import { pollFixes } from "../../lib/fix/pollFixes";
+import { MAX_POLL_FAILURES, mentionsRule, pollFixes } from "../../lib/fix/pollFixes";
 import { startFixes } from "../../lib/fix/startFixes";
 import { loadRun, saveRun } from "../../lib/store";
 import { type Handler, fakeFetch, finding, json, makeRun } from "./helpers";
@@ -123,6 +122,60 @@ describe("with Devin", () => {
     expect(polled.fixes.map((f) => f.status)).toEqual(["finished", "finished", "error"]);
     expect(polled.stage).toBe("fixed");
     expect((await loadRun("run1")).stage).toBe("fixed");
+  });
+
+  it("marks a fix error after five failed polls in a row, and a success in between resets the count", async () => {
+    const run = makeRun("run1", findings());
+    run.stage = "fixing";
+    run.fixes = [
+      { ruleId: "R2", sessionId: "unreachable", url: "", status: "working", prUrl: "", summary: "", acus: 0 },
+      { ruleId: "R5", sessionId: "flaky", url: "", status: "working", prUrl: "", summary: "", acus: 0 },
+    ];
+    await saveRun(run);
+
+    let flakyPolls = 0;
+    fakeFetch([
+      ["GET /sessions/unreachable", () => json({ detail: "Forbidden" }, 403)],
+      [
+        "GET /sessions/flaky",
+        () => (++flakyPolls === 4 ? json({ session_id: "flaky", url: "", status: "running" }) : json({ detail: "slow down" }, 429)),
+      ],
+    ]);
+
+    expect(MAX_POLL_FAILURES).toBe(5);
+    for (let i = 1; i < MAX_POLL_FAILURES; i++) {
+      const polled = await pollFixes("run1");
+      expect(polled.fixes.map((f) => f.status)).toEqual(["working", "working"]);
+    }
+    const polled = await pollFixes("run1");
+    expect(polled.fixes[0].status).toBe("error");
+    expect(polled.fixes[0].summary).toMatch(/^Could not reach this Devin session: Devin API GET \/sessions\/unreachable failed: 403/);
+    // Failures 1-3, a success, then failure 1 again: still working.
+    expect(polled.fixes[1].status).toBe("working");
+    expect(polled.stage).toBe("fixing");
+    expect(JSON.stringify(await loadRun("run1"))).not.toMatch(/failures/i);
+
+    for (let i = 0; i < MAX_POLL_FAILURES - 1; i++) await pollFixes("run1");
+    const settled = await loadRun("run1");
+    expect(settled.fixes.map((f) => f.status)).toEqual(["error", "error"]);
+    expect(settled.stage).toBe("fixed");
+  });
+
+  it("gives up on a session that cannot be reached over the network", async () => {
+    const run = makeRun("run2", findings());
+    run.stage = "fixing";
+    run.fixes = [{ ruleId: "R2", sessionId: "offline", url: "", status: "working", prUrl: "", summary: "", acus: 0 }];
+    await saveRun(run);
+    vi.stubGlobal("fetch", async () => {
+      throw new TypeError("fetch failed");
+    });
+
+    for (let i = 0; i < MAX_POLL_FAILURES; i++) await pollFixes("run2");
+    expect((await loadRun("run2")).fixes[0]).toMatchObject({
+      status: "error",
+      summary: "Could not reach this Devin session: fetch failed",
+    });
+    expect((await loadRun("run2")).stage).toBe("fixed");
   });
 
   it("counts a session that waits for a reply with its pull request open as finished", async () => {

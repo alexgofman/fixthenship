@@ -1,5 +1,5 @@
 import { getSession } from "../devin/client";
-import { loadRun, saveRun } from "../store";
+import { loadRun, updateRun } from "../store";
 import type { FixSession, Run, RuleId } from "../types";
 import { baseBranch } from "./brief";
 import { type PullRequest, listOpenPullRequests, parseRepoUrl } from "./github";
@@ -14,17 +14,35 @@ export function matchPullRequest(pulls: PullRequest[], ruleId: RuleId): PullRequ
   return pulls.find((p) => mentionsRule(p.title, ruleId) || mentionsRule(p.headRef, ruleId));
 }
 
+/** Polls of one session that may fail in a row before its fix is given up as an error. */
+export const MAX_POLL_FAILURES = 5;
+
+/** Failed polls in a row, by session id. Kept in memory only: a restart gives every session a fresh count. */
+const pollFailures = new Map<string, number>();
+
+export function unreachableSummary(reason: string): string {
+  return `Could not reach this Devin session: ${reason}`;
+}
+
 async function pollSession(fix: FixSession): Promise<FixSession> {
   try {
     const s = await getSession(fix.sessionId);
+    pollFailures.delete(fix.sessionId);
     const prUrl = s.prUrl || fix.prUrl;
     // A session that has opened its pull request and now waits for a reply has done its work. Devin only
     // reports it as finished about ten minutes later, when it suspends the idle session.
     const status = s.status === "waiting" && prUrl ? "finished" : s.status;
     return { ...fix, status, prUrl, summary: s.summary || fix.summary, acus: s.acus };
   } catch (err) {
-    console.error(`pollFixes: session ${fix.sessionId} (${fix.ruleId}): ${errorMessage(err)}`);
-    return fix;
+    const reason = errorMessage(err);
+    const failures = (pollFailures.get(fix.sessionId) ?? 0) + 1;
+    console.error(`pollFixes: session ${fix.sessionId} (${fix.ruleId}), failure ${failures}: ${reason}`);
+    if (failures < MAX_POLL_FAILURES) {
+      pollFailures.set(fix.sessionId, failures);
+      return fix;
+    }
+    pollFailures.delete(fix.sessionId);
+    return { ...fix, status: "error", summary: unreachableSummary(reason) };
   }
 }
 
@@ -57,9 +75,12 @@ export async function pollFixes(runId: string): Promise<Run> {
   const fromPulls = manual.length ? await pollPullRequests(run, manual) : [];
   const updates = new Map([...withSession, ...fromPulls].map((f) => [f.ruleId, f]));
 
-  const latest = await loadRun(runId);
-  latest.fixes = latest.fixes.map((f) => updates.get(f.ruleId) ?? f);
-  if (latest.stage === "fixing" && latest.fixes.every(isSettled)) latest.stage = "fixed";
-  await saveRun(latest);
-  return latest;
+  return updateRun(runId, (latest) => {
+    latest.fixes = latest.fixes.map((f) => {
+      const update = updates.get(f.ruleId);
+      // A fix restarted while this poll was out keeps its new session.
+      return update && update.sessionId === f.sessionId ? update : f;
+    });
+    if (latest.stage === "fixing" && latest.fixes.every(isSettled)) latest.stage = "fixed";
+  });
 }

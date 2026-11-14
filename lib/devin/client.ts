@@ -97,9 +97,10 @@ export function mapStatus(status: string, detail?: string | null): FixStatus {
 export function toDevinSession(body: DevinSessionResponse): DevinSession {
   const output = body.structured_output ?? {};
   const summary = typeof output.summary === "string" ? output.summary : "";
+  const reportedPr = typeof output.prUrl === "string" ? output.prUrl.trim() : "";
   return {
     status: mapStatus(body.status, body.status_detail),
-    prUrl: body.pull_requests?.[0]?.pr_url ?? "",
+    prUrl: body.pull_requests?.[0]?.pr_url || reportedPr,
     summary,
     acus: typeof body.acus_consumed === "number" ? body.acus_consumed : 0,
   };
