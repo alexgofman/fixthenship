@@ -57,7 +57,10 @@ const RULE_EXTRA: Partial<Record<RuleId, string>> = {
     "do not try to hide it with CSS or scripts, and state clearly in your summary that the owner must switch it off in the builder's project settings.",
   R8:
     "Hide the purchase path (buttons, links and screens that lead to the outside checkout) when the app runs inside an iPhone wrapper, " +
-    "and keep it unchanged on the web. State clearly in your summary that selling on iPhone needs in-app purchase.",
+    "and keep it unchanged on the web. Detect the wrapper the way Capacitor reports it: `window.Capacitor?.getPlatform?.() === \"ios\"` " +
+    "(you may add other signals as well). FixThenShip's re-check opens the app with Capacitor reporting the platform \"ios\" and expects " +
+    "no way to reach the outside checkout from there, including by opening the purchase screen's address directly. " +
+    "State clearly in your summary that selling on iPhone needs in-app purchase.",
 };
 
 export function describeEvidence(evidence: Evidence): string {

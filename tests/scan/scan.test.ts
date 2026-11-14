@@ -100,4 +100,25 @@ describe("scanRepo folders", () => {
     await writeFile(path.join(dir, "src", "copy.js"), bad);
     expect((await scanRepo(dir)).map((f) => f.ruleId)).toEqual(["R2", "R10"]);
   });
+
+  it("does not count a builder's packages and client code, which nobody sees, as branding", async () => {
+    await cp(path.join(FIXTURES, "r10", "good"), dir, { recursive: true });
+    await writeFile(
+      path.join(dir, "package.json"),
+      '{ "name": "acme-notes", "dependencies": { "@lovable.dev/cloud-auth-js": "^1.0.0" }, "devDependencies": { "lovable-tagger": "^1.1.7" } }\n',
+    );
+    await mkdir(path.join(dir, "src", "integrations", "lovable"), { recursive: true });
+    await writeFile(
+      path.join(dir, "src", "integrations", "lovable", "index.ts"),
+      'import { createLovableAuth } from "@lovable.dev/cloud-auth-js";\nexport const auth = createLovableAuth({ host: "x.lovable.app" });\n',
+    );
+    expect(await scanRepo(dir)).toEqual([]);
+
+    // The same address in the page's own metadata does reach the screen (the social preview image).
+    await writeFile(
+      path.join(dir, "index.html"),
+      '<!doctype html><html><head><title>Acme Notes</title><meta property="og:image" content="https://lovable.dev/opengraph-image.png" /></head><body></body></html>\n',
+    );
+    expect((await scanRepo(dir)).map((f) => f.ruleId)).toEqual(["R10"]);
+  });
 });
