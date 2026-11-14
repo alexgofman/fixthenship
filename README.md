@@ -1,36 +1,43 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# FixThenShip
 
-## Getting Started
+Reviews an AI-built app the way an App Store reviewer would, starts coding-agent sessions to fix what it finds, and re-checks the result. Results describe likely outcomes and risks, never a guarantee.
 
-First, run the development server:
+This repository is the skeleton: types, the rules table, a file-based run store, stub API routes and two pages.
+
+## Run it
+
+Requires Node 24 and npm.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev   # http://localhost:3000
+npm test      # Vitest
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Copy `.env.example` to `.env.local` when the real integrations land (not used yet).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Layout
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Path | What it is |
+|---|---|
+| `lib/types.ts` | `Run`, `Finding`, `Evidence`, `FixSession`, `CheckResult` and their allowed values |
+| `lib/rules.ts` | `RULES`: the thirteen review rules R1 to R13 |
+| `lib/store.ts` | `createRun`, `loadRun`, `saveRun`, `listRuns`; each run is `runs/<runId>/run.json` |
+| `examples/example-run.json` | Example run with eight findings; copied into `runs/example/` on first use |
+| `app/page.tsx` | `/`: review form and list of runs |
+| `app/runs/[runId]/` | `/runs/[runId]`: stage timeline and findings, polls every 3 seconds |
+| `app/api/runs/...` | Stub routes (below) |
 
-## Learn More
+## API (stubs)
 
-To learn more about Next.js, take a look at the following resources:
+- `POST /api/runs`: form fields or JSON `repoUrl`, `appUrl`. Creates a run, copies the example findings, sets stage `reviewed`. Form posts redirect to the run page; JSON gets the run back.
+- `GET /api/runs`: all runs, newest first.
+- `GET /api/runs/[runId]`: one run.
+- `POST /api/runs/[runId]/fix`: sets stage `fixing`, then `fixed`.
+- `POST /api/runs/[runId]/recheck`: sets stage `done`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Notes
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- No database and no sign-in. The `runs/` folder is git-ignored (as `/runs/`, so `app/runs` and `app/api/runs` stay tracked).
+- `RUNS_DIR` overrides where runs are stored; the tests use a temp folder.
+- Next.js 16 with Cache Components: pages read runs inside `<Suspense>` after `connection()`.
