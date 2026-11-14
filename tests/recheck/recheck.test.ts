@@ -1,4 +1,4 @@
-import type { ChildProcess, SpawnOptions } from "node:child_process";
+import type { ChildProcess, ExecFileOptions, SpawnOptions } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -6,7 +6,7 @@ import path from "node:path";
 import { PassThrough } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mergeFixes } from "../../lib/recheck/mergeFixes";
-import { RECHECK_URL, recheckApp, type RecheckDeps } from "../../lib/recheck/recheckApp";
+import { INSTALL_ARGS, RECHECK_URL, recheckApp, type RecheckDeps } from "../../lib/recheck/recheckApp";
 import { REVIEW_RULES } from "../../lib/review/pipeline";
 import { loadRun, saveRun } from "../../lib/store";
 import type { CheckResult, Finding, FixSession, RuleId, Run } from "../../lib/types";
@@ -106,12 +106,14 @@ function fakeChild(pid: number): FakeChild {
 type Harness = {
   deps: Partial<RecheckDeps>;
   spawned: { args: string[]; options: SpawnOptions; child: FakeChild }[];
+  installs: { file: string; args: string[]; options: ExecFileOptions }[];
   kills: [number, string][];
 };
 
 /** Fake child processes: the app answers once spawned and dies on SIGTERM. `crashOnStart` makes npm exit at once. */
 function harness({ crashOnStart = false } = {}): Harness {
   const spawned: Harness["spawned"] = [];
+  const installs: Harness["installs"] = [];
   const kills: [number, string][] = [];
   let up = false;
   const deps: Partial<RecheckDeps> = {
@@ -119,7 +121,9 @@ function harness({ crashOnStart = false } = {}): Harness {
     clone: async (_url, _branch, dest) => {
       await mkdir(dest, { recursive: true });
     },
-    install: async () => {},
+    execFile: async (file, args, options) => {
+      installs.push({ file, args, options });
+    },
     spawn: (_cmd, args, options) => {
       const child = fakeChild(1000 + spawned.length);
       spawned.push({ args, options, child });
@@ -145,7 +149,7 @@ function harness({ crashOnStart = false } = {}): Harness {
     stopGraceMs: 10,
     startTimeoutMs: 2_000,
   };
-  return { deps, spawned, kills };
+  return { deps, spawned, installs, kills };
 }
 
 /** Fake checks: every review rule gets `outcomes[rule] ?? "pass"`, with a screenshot and trace on disk. */
@@ -195,6 +199,52 @@ describe("mergeFixes", () => {
       humanStep: "Merge this pull request by hand: https://github.com/acme/app/pull/12",
     });
     expect(saved.R2.finalState).toBe("");
+  });
+});
+
+describe("mergeFixes binds pull requests to the run's repository", () => {
+  const notInRepo = "This pull request is not in the app's repository; it was not merged";
+
+  it("never requests or merges a pull request from another repository", async () => {
+    await makeRun(
+      [finding("R2"), finding("R5")],
+      [
+        { ...fix("R2", 41), prUrl: "https://github.com/evil/app/pull/41" },
+        { ...fix("R5", 42), prUrl: "https://github.com/ACME/App/pull/42/" },
+      ],
+    );
+    const gh = fakeGitHub();
+
+    const result = await mergeFixes("run1", { fetch: gh.fetch });
+
+    expect(result).toEqual({ merged: ["R5"], skipped: ["R2"] });
+    expect(gh.calls.some((c) => c.url.includes("/41") || c.url.includes("/evil/"))).toBe(false);
+    expect(gh.calls.map((c) => c.method)).toEqual(["GET", "PUT"]);
+    expect(byRule(await loadRun("run1")).R2).toMatchObject({ finalState: "amber", humanStep: notInRepo });
+  });
+
+  it("rejects links on another host or with a different path", async () => {
+    const links = [
+      "https://github.com.evil.dev/acme/app/pull/51",
+      "https://evil.dev/github.com/acme/app/pull/52",
+      "http://github.com/acme/app/pull/53",
+      "https://github.com/acme/app/pull/54/files",
+      "https://github.com/acme/app/pulls/55",
+      "not a url",
+    ];
+    const rules: RuleId[] = ["R1", "R2", "R5", "R6", "R9", "R10"];
+    await makeRun(
+      rules.map((r) => finding(r)),
+      rules.map((r, i) => ({ ...fix(r, 50 + i), prUrl: links[i] })),
+    );
+    const gh = fakeGitHub();
+
+    const result = await mergeFixes("run1", { fetch: gh.fetch });
+
+    expect(result).toEqual({ merged: [], skipped: rules });
+    expect(gh.calls).toEqual([]);
+    const saved = await loadRun("run1");
+    expect(saved.findings.every((f) => f.finalState === "amber" && f.humanStep === notInRepo)).toBe(true);
   });
 });
 
@@ -336,5 +386,46 @@ describe("recheckApp", () => {
       "Detail R2. The fixed app could not be started for the re-check: Remote branch store-ready not found",
     );
     expect(h.spawned).toHaveLength(0);
+  });
+
+  it("passes none of this process's secrets to npm install or the app", async () => {
+    const secrets = { DEVIN_API_KEY: "cog_secret", GITHUB_TOKEN: "ghp_secret", MODEL_API_KEY: "model_secret" };
+    Object.assign(process.env, secrets);
+    await makeRun([finding("R2")]);
+    const h = harness();
+    try {
+      await recheckApp("run1", {
+        ...h.deps,
+        clone: async (_url, _branch, dest) => {
+          await mkdir(dest, { recursive: true });
+          await writeFile(path.join(dest, ".env"), "VITE_API_URL=https://api.acme.dev\nSECRET_KEY=x\nPATH=/evil\n");
+          await writeFile(path.join(dest, ".env.local"), "export NEXT_PUBLIC_SITE='Acme' # name\nDATABASE_URL=postgres://x\n");
+        },
+        runChecks: checksWith(),
+      });
+    } finally {
+      for (const key of Object.keys(secrets)) delete process.env[key];
+      process.env.GITHUB_TOKEN = "ghp_test";
+    }
+
+    expect(h.installs).toHaveLength(1);
+    expect(h.installs[0]).toMatchObject({ file: "npm", args: INSTALL_ARGS });
+    expect(INSTALL_ARGS).toEqual(["install", "--ignore-scripts", "--no-audit", "--no-fund"]);
+    const envs = [h.installs[0].options.env, h.spawned[0].options.env];
+    for (const env of envs) {
+      expect(env).toBeDefined();
+      for (const name of ["DEVIN_API_KEY", "GITHUB_TOKEN", "MODEL_API_KEY"]) expect(env).not.toHaveProperty(name);
+      expect(Object.values(env!)).not.toContain("ghp_secret");
+      expect(Object.keys(env!).sort()).toEqual(["HOME", "NEXT_PUBLIC_SITE", "NODE_ENV", "PATH", "PORT", "VITE_API_URL"]);
+      expect(env).toMatchObject({
+        PATH: process.env.PATH,
+        PORT: "4010",
+        NODE_ENV: "development",
+        VITE_API_URL: "https://api.acme.dev",
+        NEXT_PUBLIC_SITE: "Acme",
+      });
+      expect(env!.HOME).toMatch(/fts-recheck-home-/);
+      expect(env!.HOME).not.toBe(os.homedir());
+    }
   });
 });
