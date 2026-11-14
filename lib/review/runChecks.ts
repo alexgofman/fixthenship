@@ -8,7 +8,10 @@ import { parseSteps, traceReason } from "./trace";
 export const CHECK_TIMEOUT_MS = 120_000;
 export const NOT_CHECKED_FILE = "not_checked.txt";
 /** Reasons that come from our own tools having a bad moment, not from the app. */
-const RETRY_WORTHWHILE = /timeout|timed out|ran out of time|did not finish|could not tell|not clear|could not run|ENGINE_FAILURE/i;
+const RETRY_WORTHWHILE = /timeout|timed out|ran out of time|did not finish|could not tell|not clear|could not run|ENGINE_FAILURE|^MODEL_/i;
+/** e2e's reasons for a model that did not answer usefully, e.g. MODEL_OUTPUT_INVALID, MODEL_REFUSED, MODEL_RATE_LIMITED. */
+const MODEL_FAILURE = /^MODEL_[A-Z_]*\b/;
+export const MODEL_REASON = "The check could not run because the AI model did not answer usefully.";
 
 type SpawnFn = (command: string, args: string[], options: SpawnOptions) => ChildProcess;
 
@@ -181,11 +184,16 @@ async function runOne(
     } else if (outcome === "fail" && /^(?:TEST|STEP)_TIMEOUT\b/.test(reason)) {
       outcome = "not_checked";
       reason = "The check ran out of time before it reached a result.";
+    } else if (outcome === "fail" && MODEL_FAILURE.test(reason)) {
+      outcome = "not_checked";
+      reason = MODEL_REASON;
     }
   } else {
     outcome = "not_checked";
     const detail = trace ? traceReason(trace, false) : exit.error ?? lastLine(exit.output);
-    reason = `The check could not run (e2e exit ${exit.code ?? "none"}): ${detail || "no output"}`;
+    reason = MODEL_FAILURE.test(detail)
+      ? MODEL_REASON
+      : `The check could not run (e2e exit ${exit.code ?? "none"}): ${detail || "no output"}`;
   }
 
   return { ruleId, outcome, reason, steps: trace ? parseSteps(trace) : [], screenshots };

@@ -165,6 +165,41 @@ nothing to extract: the screen shows the home screen.
     ]);
   });
 
+  it("treats a model that did not answer usefully as not checked and tries it once more", async () => {
+    const modelTrace = (code: string) => `# ✗ the app loads
+
+**${code}**
+
+\`\`\`text
+agent.assert failed
+the model returned no usable answer.
+\`\`\`
+
+## Steps
+
+1. ✗ \`agent.assert\` "real content" (2.1s, 1 model call) — **${code}** — \`checks/R1.e2e.ts:5\`
+`;
+    const calls: Call[] = [];
+    const spawn = fakeSpawn(
+      {
+        R1: { code: 1, trace: modelTrace("MODEL_OUTPUT_INVALID") },
+        R2: { code: 1, trace: modelTrace("MODEL_REFUSED") },
+        R5: { code: 3, trace: modelTrace("MODEL_RATE_LIMITED") },
+        R6: { code: 1, trace: FAIL_TRACE },
+      },
+      calls,
+    );
+    const results = await runChecks("https://app.test", dir, ["R1", "R2", "R5", "R6"], { spawn, cwd: dir });
+    const reason = "The check could not run because the AI model did not answer usefully.";
+    expect(results).toMatchObject([
+      { ruleId: "R1", outcome: "not_checked", reason },
+      { ruleId: "R2", outcome: "not_checked", reason },
+      { ruleId: "R5", outcome: "not_checked", reason },
+      { ruleId: "R6", outcome: "fail" },
+    ]);
+    expect(calls.map((c) => /checks\/(R\d+)/.exec(c.args.join(" "))![1])).toEqual(["R1", "R1", "R2", "R2", "R5", "R5", "R6"]);
+  });
+
   it("stops a check that runs too long and still runs the next one", async () => {
     const spawn = fakeSpawn({ R1: { code: null }, R2: { code: 0 } }, []);
     const results = await runChecks("https://app.test", dir, ["R1", "R2"], { spawn, cwd: dir, timeoutMs: 50 });
