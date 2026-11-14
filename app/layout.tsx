@@ -32,10 +32,20 @@ export default function RootLayout({
         <header className="site-header">
           <div className="site-header-inner">
             <Link href="/" className="brand">
-              <span className="brand-mark" aria-hidden="true">
-                ✓
+              <svg className="brand-mark" viewBox="0 0 64 64" aria-hidden="true">
+                <rect width="64" height="64" rx="14" fill="#F2500F" />
+                <path
+                  d="M15 33l11 11 23-23M36 21h13v13"
+                  fill="none"
+                  stroke="#fff"
+                  strokeWidth="6.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <span className="brand-word">
+                Fix<span>Then</span>Ship
               </span>
-              FixThenShip
             </Link>
             <span className="site-tag">App Review rehearsal</span>
           </div>
