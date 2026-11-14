@@ -3,7 +3,7 @@ import path from "node:path";
 import { createSession, hasDevinKey } from "../devin/client";
 import { loadRun, runsDir, saveRun } from "../store";
 import type { Finding, FixSession, Run } from "../types";
-import { BASE_BRANCH, FIX_OUTPUT_SCHEMA, buildFixBrief } from "./brief";
+import { FIX_OUTPUT_SCHEMA, baseBranch, buildFixBrief } from "./brief";
 import { ensureBranch, parseRepoUrl } from "./github";
 import { MAX_FIXES, eligibleForFix, errorMessage } from "./status";
 
@@ -47,10 +47,11 @@ export async function startFixes(runId: string): Promise<Run> {
   await saveRun(run);
 
   const errors: string[] = [];
+  const branch = baseBranch(run);
   try {
-    await ensureBranch(parseRepoUrl(run.repoUrl), BASE_BRANCH);
+    await ensureBranch(parseRepoUrl(run.repoUrl), branch);
   } catch (err) {
-    errors.push(`Could not prepare the ${BASE_BRANCH} branch: ${errorMessage(err)}`);
+    errors.push(`Could not prepare the ${branch} branch: ${errorMessage(err)}`);
   }
 
   const findings = run.findings.filter(eligibleForFix).slice(0, MAX_FIXES);

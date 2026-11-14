@@ -10,7 +10,7 @@ import { access, lstat, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { BASE_BRANCH } from "../fix/brief";
+import { baseBranch } from "../fix/brief";
 import { errorMessage } from "../fix/status";
 import { REVIEW_RULES } from "../review/pipeline";
 import { runChecks, type RunChecksOptions } from "../review/runChecks";
@@ -340,7 +340,7 @@ function withPort<T>(task: () => Promise<T>): Promise<T> {
 }
 
 /**
- * Merges the fixes into store-ready, runs the fixed app locally on port 4010 and sets every
+ * Merges the fixes into the run's own branch, runs the fixed app locally on port 4010 and sets every
  * first-review failure's finalState. Never throws; the stage always ends "done".
  *
  * This installs and runs the reviewed repository's code on this machine with a stripped environment.
@@ -374,7 +374,7 @@ export async function recheckApp(runId: string, overrides: Partial<RecheckDeps> 
       try {
         const run = await loadRun(runId);
         try {
-          await deps.clone(run.repoUrl, BASE_BRANCH, repoDir);
+          await deps.clone(run.repoUrl, baseBranch(run), repoDir);
           home = await mkdtemp(path.join(os.tmpdir(), "fts-recheck-home-"));
           const env = await appEnv(repoDir, home);
           await npmInstall(deps.execFile, repoDir, env);

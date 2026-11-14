@@ -75,7 +75,7 @@ async function makeRun(findings: Finding[], fixes: FixSession[] = []): Promise<R
 
 type Call = { method: string; url: string; body: unknown; auth: string };
 
-/** Fake GitHub: every PR is open against store-ready; PRs in `conflicts` are refused with 405. */
+/** Fake GitHub: every PR is open against store-ready-run1; PRs in `conflicts` are refused with 405. */
 function fakeGitHub(conflicts: number[] = []): { fetch: typeof fetch; calls: Call[] } {
   const calls: Call[] = [];
   const json = (body: unknown, status = 200) =>
@@ -86,7 +86,7 @@ function fakeGitHub(conflicts: number[] = []): { fetch: typeof fetch; calls: Cal
     const headers = (init.headers ?? {}) as Record<string, string>;
     calls.push({ method, url, body: init.body ? JSON.parse(String(init.body)) : undefined, auth: headers.Authorization });
     const n = Number(url.match(/\/pulls\/(\d+)/)?.[1]);
-    if (method === "GET") return json({ state: "open", merged: false, base: { ref: "store-ready" }, head: { sha: `sha${n}` } });
+    if (method === "GET") return json({ state: "open", merged: false, base: { ref: "store-ready-run1" }, head: { sha: `sha${n}` } });
     if (conflicts.includes(n)) return json({ message: "Pull Request is not mergeable" }, 405);
     return json({ merged: true, sha: "abc" });
   };
@@ -372,21 +372,21 @@ describe("recheckApp", () => {
     expect(byRule(saved).R1.finalState).toBe("");
   });
 
-  it("ends done without crashing when the clone fails", async () => {
+  it("clones the run's own branch and ends done without crashing when the clone fails", async () => {
     await makeRun([finding("R2")]);
     const h = harness();
 
     await recheckApp("run1", {
       ...h.deps,
-      clone: async () => {
-        throw new Error("Remote branch store-ready not found");
+      clone: async (_url, branch) => {
+        throw new Error(`Remote branch ${branch} not found`);
       },
     });
 
     const saved = await loadRun("run1");
     expect(saved.stage).toBe("done");
     expect(byRule(saved).R2.detail).toBe(
-      "Detail R2. The fixed app could not be started for the re-check: Remote branch store-ready not found",
+      "Detail R2. The fixed app could not be started for the re-check: Remote branch store-ready-run1 not found",
     );
     expect(h.spawned).toHaveLength(0);
   });

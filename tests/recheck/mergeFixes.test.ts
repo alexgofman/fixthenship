@@ -2,6 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { baseBranch } from "../../lib/fix/brief";
 import { UPDATING_SUMMARY, mergeFixes, updateMessage, type MergeDeps } from "../../lib/recheck/mergeFixes";
 import { loadRun, saveRun } from "../../lib/store";
 import type { Finding, FixSession, RuleId, Run } from "../../lib/types";
@@ -80,7 +81,7 @@ function fakes(
   const gets = new Map<number, number>();
   const pull = (n: number): PullState => {
     if (!state.has(n)) {
-      state.set(n, { sha: `sha${n}`, refuse: 0, mergeable: true, merged: false, state: "open", base: "store-ready", ...pulls[n] });
+      state.set(n, { sha: `sha${n}`, refuse: 0, mergeable: true, merged: false, state: "open", base: "store-ready-run1", ...pulls[n] });
     }
     return state.get(n)!;
   };
@@ -141,10 +142,10 @@ describe("mergeFixes brings conflicting pull requests up to date through their s
     const result = await mergeFixes("run1", { ...f.deps, updateTimeoutMs: 5_000 });
 
     expect(result).toEqual({ merged: ["R2"], skipped: [] });
-    expect(f.messages).toEqual([{ sessionId: "devin-21", message: updateMessage("https://github.com/acme/app/pull/21") }]);
+    expect(f.messages).toEqual([{ sessionId: "devin-21", message: updateMessage("https://github.com/acme/app/pull/21", "store-ready-run1") }]);
     expect(f.messages[0].message).toBe(
-      "Other fixes were merged into `store-ready` first, and your pull request https://github.com/acme/app/pull/21 no longer merges cleanly. " +
-        "Merge the latest `store-ready` into your branch, resolve the conflicts so that BOTH your change and the changes already on `store-ready` are kept, " +
+      "Other fixes were merged into `store-ready-run1` first, and your pull request https://github.com/acme/app/pull/21 no longer merges cleanly. " +
+        "Merge the latest `store-ready-run1` into your branch, resolve the conflicts so that BOTH your change and the changes already on `store-ready-run1` are kept, " +
         "make sure the app still builds, and push to the same branch. Do not open a new pull request. Reply when it is pushed.",
     );
     expect(f.log).toEqual([
@@ -303,5 +304,37 @@ describe("mergeFixes brings conflicting pull requests up to date through their s
       finalState: "amber",
       humanStep: "This pull request is not in the app's repository; it was not merged",
     });
+  });
+});
+
+describe("each run merges into its own branch", () => {
+  it("gives two runs on the same repository two branches and does not merge a pull request against the other run's branch", async () => {
+    const first = "3f9a2c1e-7b4d-4e8a-9c0f-1a2b3c4d5e6f";
+    const second = "8d0b4e7a-2c5f-4a1b-8e3d-6f7a8b9c0d1e";
+    expect(baseBranch({ id: first })).toBe("store-ready-3f9a2c1e");
+    expect(baseBranch({ id: second })).toBe("store-ready-8d0b4e7a");
+    for (const [id, n] of [[first, 61], [second, 62]] as const) {
+      await saveRun({
+        id,
+        createdAt: new Date().toISOString(),
+        repoUrl: "https://github.com/acme/app",
+        appUrl: "https://app.acme.dev",
+        stage: "fixed",
+        findings: [finding("R2")],
+        fixes: [fix("R2", n)],
+        error: "",
+      });
+    }
+    // The first run's fix was opened against the second run's branch; the second run's against its own.
+    const f = fakes({ 61: { base: "store-ready-8d0b4e7a" }, 62: { base: "store-ready-8d0b4e7a" } });
+
+    expect(await mergeFixes(first, f.deps)).toEqual({ merged: [], skipped: ["R2"] });
+    expect(await mergeFixes(second, f.deps)).toEqual({ merged: ["R2"], skipped: [] });
+
+    expect(f.state.get(61)?.merged).toBe(false);
+    expect(f.state.get(62)?.merged).toBe(true);
+    expect(f.log).toEqual(["GET /pulls/61", "GET /pulls/62", "PUT /pulls/62/merge"]);
+    expect(byRule(await loadRun(first)).R2).toMatchObject({ finalState: "amber", humanStep: handMerge(61) });
+    expect(byRule(await loadRun(second)).R2.finalState).toBe("");
   });
 });

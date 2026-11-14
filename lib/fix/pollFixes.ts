@@ -1,7 +1,7 @@
 import { getSession } from "../devin/client";
 import { loadRun, saveRun } from "../store";
 import type { FixSession, Run, RuleId } from "../types";
-import { BASE_BRANCH } from "./brief";
+import { baseBranch } from "./brief";
 import { type PullRequest, listOpenPullRequests, parseRepoUrl } from "./github";
 import { errorMessage, isDone } from "./status";
 
@@ -31,7 +31,7 @@ async function pollSession(fix: FixSession): Promise<FixSession> {
 async function pollPullRequests(run: Run, fixes: FixSession[]): Promise<FixSession[]> {
   let pulls: PullRequest[];
   try {
-    pulls = await listOpenPullRequests(parseRepoUrl(run.repoUrl), BASE_BRANCH);
+    pulls = await listOpenPullRequests(parseRepoUrl(run.repoUrl), baseBranch(run));
   } catch (err) {
     console.error(`pollFixes: listing pull requests for ${run.repoUrl}: ${errorMessage(err)}`);
     return fixes;

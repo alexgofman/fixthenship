@@ -1,6 +1,9 @@
 import type { Evidence, Finding, RuleId, Run } from "../types";
 
-export const BASE_BRANCH = "store-ready";
+/** The branch one run's fixes are merged into, created from the default branch when its fixes start. */
+export function baseBranch(run: Pick<Run, "id">): string {
+  return `store-ready-${run.id.slice(0, 8)}`;
+}
 
 /** What an App Store reviewer does for each rule, and what they expect to see. */
 const REVIEWER_STEPS: Partial<Record<RuleId, string>> = {
@@ -85,7 +88,7 @@ export function buildFixBrief(run: Run, finding: Finding): string {
     "FixThenShip reviewed this app the way an App Store reviewer would and found a likely rejection risk. Please fix it.",
     "",
     `Repository: ${run.repoUrl}`,
-    `Base branch: ${BASE_BRANCH}`,
+    `Base branch: ${baseBranch(run)}`,
     `App URL: ${run.appUrl}`,
     "",
     `## App Store guideline ${finding.guideline}: ${finding.title}`,
@@ -105,7 +108,7 @@ export function buildFixBrief(run: Run, finding: Finding): string {
     "## What to do",
     "",
     ...(extra ? [extra, ""] : []),
-    `- Open ONE small pull request against the \`${BASE_BRANCH}\` branch that fixes only this finding.`,
+    `- Open ONE small pull request against the \`${baseBranch(run)}\` branch that fixes only this finding.`,
     `- Put "${finding.ruleId}" in the pull request title and branch name.`,
     "- Do not touch anything unrelated: no refactors, formatting changes, dependency upgrades or other fixes.",
     "- When done, report the pull request link and a one-line summary of what you changed.",

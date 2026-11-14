@@ -2,7 +2,7 @@ import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { buildFixBrief } from "../../lib/fix/brief";
+import { baseBranch, buildFixBrief } from "../../lib/fix/brief";
 import { mentionsRule } from "../../lib/fix/pollFixes";
 import { pollFixes } from "../../lib/fix/pollFixes";
 import { startFixes } from "../../lib/fix/startFixes";
@@ -11,7 +11,7 @@ import { type Handler, fakeFetch, finding, json, makeRun } from "./helpers";
 
 let dir: string;
 
-const branchExists: [string, Handler] = ["GET /repos/acme/app/branches/store-ready", () => json({ name: "store-ready" })];
+const branchExists: [string, Handler] = ["GET /repos/acme/app/branches/store-ready-run1", () => json({ name: "store-ready-run1" })];
 
 function findings() {
   return [
@@ -62,7 +62,7 @@ describe("with Devin", () => {
     expect(creates).toHaveLength(3);
     for (const c of creates) {
       expect(c.body).toMatchObject({ tags: ["fixthenship-run1"], max_acu_limit: 3 });
-      expect((c.body as { prompt: string }).prompt).toContain("Base branch: store-ready");
+      expect((c.body as { prompt: string }).prompt).toContain("Base branch: store-ready-run1");
     }
   });
 
@@ -157,10 +157,10 @@ describe("without DEVIN_API_KEY", () => {
   it("creates the branch, writes briefs and saves queued fixes with no session", async () => {
     await saveRun(makeRun("run1", findings()));
     const calls = fakeFetch([
-      ["GET /branches/store-ready", () => json({ message: "Branch not found" }, 404)],
+      ["GET /branches/store-ready-run1", () => json({ message: "Branch not found" }, 404)],
       ["GET /repos/acme/app/git/ref/heads/main", () => json({ object: { sha: "abc123" } })],
       ["GET /repos/acme/app", () => json({ default_branch: "main" })],
-      ["POST /repos/acme/app/git/refs", () => json({ ref: "refs/heads/store-ready" }, 201)],
+      ["POST /repos/acme/app/git/refs", () => json({ ref: "refs/heads/store-ready-run1" }, 201)],
     ]);
 
     const run = await startFixes("run1");
@@ -171,7 +171,7 @@ describe("without DEVIN_API_KEY", () => {
       ["R5", "queued", ""],
       ["R7", "queued", ""],
     ]);
-    expect(calls.find((c) => c.method === "POST")?.body).toEqual({ ref: "refs/heads/store-ready", sha: "abc123" });
+    expect(calls.find((c) => c.method === "POST")?.body).toEqual({ ref: "refs/heads/store-ready-run1", sha: "abc123" });
     expect(calls.some((c) => c.url.includes("api.devin.ai"))).toBe(false);
 
     const briefs = (await readdir(path.join(dir, "run1", "briefs"))).sort();
@@ -181,7 +181,7 @@ describe("without DEVIN_API_KEY", () => {
     expect(r7).toContain("src/App.tsx, line 12");
   });
 
-  it("matches open pull requests on store-ready to findings by rule id", async () => {
+  it("matches open pull requests on the run's branch to findings by rule id", async () => {
     const run = makeRun("run1", findings());
     run.stage = "fixing";
     run.fixes = ["R2", "R5", "R7"].map((ruleId) => ({
@@ -203,7 +203,7 @@ describe("without DEVIN_API_KEY", () => {
 
     let polled = await pollFixes("run1");
     expect(calls[0].url).toContain("state=open");
-    expect(calls[0].url).toContain("base=store-ready");
+    expect(calls[0].url).toContain("base=store-ready-run1");
     expect(polled.fixes.map((f) => [f.ruleId, f.status, f.prUrl])).toEqual([
       ["R2", "finished", "https://github.com/acme/app/pull/1"],
       ["R5", "finished", "https://github.com/acme/app/pull/2"],
@@ -224,14 +224,19 @@ describe("briefs", () => {
     const f = { ...finding("R8", "fail", "partly"), guideline: "3.1.1", title: "Digital goods are not sold through outside checkout" };
     const brief = buildFixBrief(run, f);
     expect(brief).toContain("Repository: https://github.com/acme/app");
-    expect(brief).toContain("Base branch: store-ready");
+    expect(brief).toContain("Base branch: store-ready-run1");
     expect(brief).toContain("guideline 3.1.1: Digital goods are not sold through outside checkout");
     expect(brief).toContain("Detail R8");
     expect(brief).toContain("src/App.tsx, line 12: Caption R8");
     expect(brief).toContain("iPhone wrapper");
     expect(brief).toContain("selling on iPhone needs in-app purchase");
-    expect(brief).toContain("ONE small pull request");
+    expect(brief).toContain("ONE small pull request against the `store-ready-run1` branch");
     expect(brief).not.toMatch(/will approve|guarantee/i);
+  });
+
+  it("names each run's own branch after the first 8 characters of its id", () => {
+    expect(baseBranch({ id: "example" })).toBe("store-ready-example");
+    expect(baseBranch({ id: "3f9a2c1e-7b4d-4e8a-9c0f-1a2b3c4d5e6f" })).toBe("store-ready-3f9a2c1e");
   });
 
   it("matches rule ids exactly", () => {
