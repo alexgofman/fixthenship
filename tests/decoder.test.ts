@@ -88,13 +88,19 @@ describe("decode", () => {
   });
 
   it("falls back to the parent and says so", () => {
-    expect(decode("2.1(a)")).toMatchObject({ guideline: "2.1", ourCheck: "R1", fellBack: true });
+    expect(decode("2.1(c)")).toMatchObject({ guideline: "2.1", ourCheck: "R1, R2, R3, R4", fellBack: true });
     expect(decode("2.3.3(b)")).toMatchObject({ guideline: "2.3.3", fellBack: true });
+    expect(decode("5.1.1(iv)")).toMatchObject({ guideline: "5.1.1", ourCheck: "R5, R6", fellBack: true });
   });
 
   it("returns undefined when neither the number nor a parent has an entry", () => {
-    expect(decode("5.1.1(iv)")).toBeUndefined();
-    expect(decode("1.2")).toBeUndefined();
+    expect(decode("2.5.2")).toBeUndefined();
+    expect(decode("1.4")).toBeUndefined();
+  });
+
+  it("has the 32 checked entries, each number once", () => {
+    expect(entries).toHaveLength(32);
+    expect(new Set(entries.map((e) => e.guideline)).size).toBe(32);
   });
 
   it("knows every entry in the data file", () => {

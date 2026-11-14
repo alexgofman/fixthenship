@@ -15,7 +15,7 @@ The app uses a third-party login service, but does not appear to offer an equiva
 
 Guideline 2.3.3 - Performance - Accurate Metadata
 
-Guideline 1.2 - Safety - User-Generated Content <script>alert(1)</script>`;
+Guideline 2.5.2 - Performance - Software Requirements <script>alert(1)</script>`;
 
 function render(rejectionText: string | undefined, findings: Finding[] = []) {
   const run: Run = { ...makeRun("run1", findings), rejectionText };
@@ -37,17 +37,17 @@ describe("RejectionDecoder", () => {
   it("explains each guideline in Apple's order and links a matching finding's card", () => {
     const html = render(MESSAGE, [finding("R6", "fail", "yes")]);
     expect(html).toContain("What Apple&#x27;s message means");
-    const order = ["Guideline 5.1.1(v)", "Guideline 4.8", "Guideline 2.3.3", "Guideline 1.2"].map((t) => html.indexOf(t));
+    const order = ["Guideline 5.1.1(v)", "Guideline 4.8", "Guideline 2.3.3", "Guideline 2.5.2"].map((t) => html.indexOf(t));
     expect(order.every((i) => i >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
-    expect(html).toContain("Legal: Privacy: Account Sign-In");
+    expect(html).toContain("Legal: Privacy - Data Collection and Storage");
     expect(html).toContain("In plain words");
     expect(html).toContain("What the reviewer most often saw");
     expect(html).toContain("What to do first");
     expect(html).toContain('Our check for this: <a href="#finding-R6">Likely rejection</a>');
     expect(html).toContain(CHECK_RUNNING_LINE);
     expect(html).toContain(NO_CHECK_LINE);
-    expect(html).toContain("We do not have a plain explanation for guideline 1.2 yet.");
+    expect(html).toContain("We do not have a plain explanation for guideline 2.5.2 yet.");
     expect(html).toContain("This is not legal advice.");
   });
 
@@ -58,14 +58,14 @@ describe("RejectionDecoder", () => {
   });
 
   it("shows the state after the re-check", () => {
-    const html = render("Guideline 2.1 - Performance - App Completeness", [
-      { ...finding("R1", "fail", "partly"), finalState: "green" },
+    const html = render("Guideline 5.1.1(v) - Legal - Privacy - Data Collection and Storage", [
+      { ...finding("R6", "fail", "partly"), finalState: "green" },
     ]);
-    expect(html).toContain('<a href="#finding-R1">Fixed and verified</a>');
+    expect(html).toContain('<a href="#finding-R6">Fixed and verified</a>');
   });
 
   it("says when it explains the parent of the named guideline", () => {
-    expect(render("Guideline 2.1(a) - Performance")).toContain("We explain guideline 2.1, the part of Apple&#x27;s rules that 2.1(a) belongs to.");
+    expect(render("Guideline 2.3.3(b) - Performance")).toContain("We explain guideline 2.3.3, the part of Apple&#x27;s rules that 2.3.3(b) belongs to.");
   });
 
   it("shows the pasted message back as plain text only", () => {

@@ -35,7 +35,7 @@
       "items": [
         {
           "text": "Open the Privacy Policy URL in App Store Connect. It must load and say what you collect and who receives it.",
-          "why": "Apple requires this link in App Store Connect as well as in the app, and the policy must cover any outside service, including AI, that receives user data.",
+          "why": "Apple requires this link in App Store Connect as well as in the app. The policy must say what data you collect and how you use it, and cover outside services that receive it. Apple also asks you to say clearly when data goes to a third-party AI (5.1.2(i)).",
           "guideline": "5.1.1(i)"
         },
         {
@@ -45,8 +45,8 @@
         },
         {
           "text": "On the iPhone build, trigger each permission request: camera, location, tracking if you use ad tools. Each must say plainly why.",
-          "why": "This text lives only in the iPhone build; Apple lists unclear permission requests as a common problem and requires its own prompt before tracking.",
-          "guideline": "5.1.1(ii)"
+          "why": "Apple asks that each permission text clearly explains how the data is used (5.1.1(ii)), and requires permission through App Tracking Transparency before tracking (5.1.2(i)).",
+          "guideline": "5.1.1(ii), 5.1.2(i)"
         }
       ]
     },
@@ -60,7 +60,7 @@
         },
         {
           "text": "Check your iPad screenshots were taken on an iPad or the iPad simulator, not resized or stretched from iPhone ones.",
-          "why": "Apple wants each device's screenshots to show the app in use on that device, and a founder was rejected for resized iPhone screenshots.",
+          "why": "App Store Connect asks for screenshots for each device size, and a founder was rejected for iPad screenshots resized from iPhone ones. Guideline 2.3.3 asks that screenshots show the app in use.",
           "guideline": "2.3.3"
         },
         {

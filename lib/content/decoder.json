@@ -1,50 +1,258 @@
 [
   {
+    "guideline": "1.2",
+    "appleCallsIt": "Safety: User-Generated Content",
+    "plain": "If people can post, chat or generate content in your app, you must filter bad content, let users report it, let them block abusive users, and show how to contact you. Rule 4.7.1 asks the same filtering, reporting and blocking of mini apps, mini games, chatbots and plug-ins offered inside your app.",
+    "usuallyMeans": "The reviewer found posts, comments, chat or AI output with no Report button, no way to block a user, or no terms that users must accept first.",
+    "whatToDo": "Add a Report control on every piece of user content, a Block user option, a content filter and terms that ban abuse, then say in the review notes where each one is.",
+    "ourCheck": ""
+  },
+  {
+    "guideline": "1.5",
+    "appleCallsIt": "Safety: Developer Information",
+    "plain": "People must have an easy, up-to-date way to reach you, both inside the app and at the Support URL on your App Store listing.",
+    "usuallyMeans": "The Support URL on the listing did not open, or opened a page with no way to ask a question or get help.",
+    "whatToDo": "Open your Support URL in a private browser window and make sure it loads a page with a working email address or contact form.",
+    "ourCheck": "R9"
+  },
+  {
     "guideline": "2.1",
     "appleCallsIt": "Performance: App Completeness",
-    "plain": "The app must be finished and working when the reviewer opens it.",
-    "usuallyMeans": "The reviewer hit a crash, a blank screen, placeholder text, a dead button, or could not sign in.",
-    "whatToDo": "Open the app as a new user on a phone and press everything; give the reviewer a demo account.",
-    "ourCheck": "R1"
+    "plain": "Send a finished app: no crashes, no placeholder text, no dead links, and a login the reviewer can use. Apple may also write plain 2.1, or 2.1 with the label Information Needed when the reviewer is stuck and asks you a question.",
+    "usuallyMeans": "The reviewer hit a crash, an error, a blank screen or a button that did nothing, often on an iPad, or saw placeholder content, or could not get past the login (a server that cannot be reached on IPv6-only networks, rule 2.5.5, looks the same).",
+    "whatToDo": "Read the bug description and the device named in the message, repeat those steps yourself at that screen size, and check that the demo login in App Review Information still works.",
+    "ourCheck": "R1, R2, R3, R4"
   },
   {
-    "guideline": "5.1.1(i)",
-    "appleCallsIt": "Legal: Privacy: Data Collection and Storage",
-    "plain": "The app needs a privacy policy that people can open from inside the app.",
-    "usuallyMeans": "The reviewer could not find a privacy policy link in the app.",
-    "whatToDo": "Add a privacy policy page and link it from the sign-up screen and the settings.",
-    "ourCheck": "R5"
+    "guideline": "2.1(a)",
+    "appleCallsIt": "Performance: App Completeness",
+    "plain": "Send a finished app: no crashes, no placeholder text, no dead links, and a login the reviewer can use. Apple may also write plain 2.1, or 2.1 with the label Information Needed when the reviewer is stuck and asks you a question.",
+    "usuallyMeans": "The reviewer hit a crash, an error, a blank screen or a button that did nothing, often on an iPad, or saw placeholder content, or could not get past the login (a server that cannot be reached on IPv6-only networks, rule 2.5.5, looks the same).",
+    "whatToDo": "Read the bug description and the device named in the message, repeat those steps yourself at that screen size, and check that the demo login in App Review Information still works.",
+    "ourCheck": "R1, R2, R3, R4"
   },
   {
-    "guideline": "5.1.1(v)",
-    "appleCallsIt": "Legal: Privacy: Account Sign-In",
-    "plain": "If people can create an account in the app, they must be able to delete it in the app.",
-    "usuallyMeans": "The reviewer created an account and found no way to delete it.",
-    "whatToDo": "Add a Delete account option in the settings that really deletes the account.",
-    "ourCheck": "R6"
+    "guideline": "2.1(b)",
+    "appleCallsIt": "Performance: App Completeness",
+    "plain": "Every in-app purchase must be complete, up to date, visible to the reviewer and working. If one cannot be found or reviewed in the app, explain why in the review notes.",
+    "usuallyMeans": "A purchase set up in App Store Connect could not be found in the app, was not sent in with the build, or showed an error when the reviewer tapped Buy.",
+    "whatToDo": "Attach every in-app purchase to this app version in App Store Connect, test buying each one in Apple's test mode (sandbox), and say in the review notes where to find them.",
+    "ourCheck": ""
   },
   {
-    "guideline": "4.8",
-    "appleCallsIt": "Design: Login Services",
-    "plain": "An app that offers sign-in with another company must also offer an equally private option, such as Sign in with Apple.",
-    "usuallyMeans": "The sign-in screen had Google or Facebook login and no Apple option.",
-    "whatToDo": "Add Sign in with Apple next to the other sign-in buttons.",
-    "ourCheck": "R7"
+    "guideline": "2.2",
+    "appleCallsIt": "Performance: Beta Testing",
+    "plain": "Demos, betas and trial versions do not belong on the App Store. Apple wants those tested through TestFlight.",
+    "usuallyMeans": "The reviewer saw the word beta, demo, test or preview in the app or its listing, or a button or screen that exists only for testing.",
+    "whatToDo": "Search the app and the listing for beta, demo, test and preview, and remove those words and any test-only buttons or screens.",
+    "ourCheck": ""
   },
   {
-    "guideline": "3.1.1",
-    "appleCallsIt": "Business: Payments: In-App Purchase",
-    "plain": "Digital goods and subscriptions used in the app must be sold through Apple's in-app purchase.",
-    "usuallyMeans": "The reviewer found a link or button that sells a paid plan through an outside checkout.",
-    "whatToDo": "Hide the outside checkout inside the iPhone app or add in-app purchase.",
-    "ourCheck": "R8"
+    "guideline": "2.3",
+    "appleCallsIt": "Performance: Accurate Metadata",
+    "plain": "Your app name, description, screenshots, previews and privacy details must match what the app really does. The sub-number says which part is wrong: 2.3.2 paid features not labelled as paid, 2.3.3 screenshots, 2.3.7 name and keywords, 2.3.10 other platforms.",
+    "usuallyMeans": "The listing promised a feature or showed a screen that the reviewer could not find in the app.",
+    "whatToDo": "Read your description and screenshots side by side with the live app, and remove or correct every claim the app does not show.",
+    "ourCheck": ""
   },
   {
     "guideline": "2.3.3",
     "appleCallsIt": "Performance: Accurate Metadata",
-    "plain": "Screenshots must show the app in use on that device.",
-    "usuallyMeans": "The screenshots were marketing images, or iPhone screenshots stretched to iPad size.",
-    "whatToDo": "Take real screenshots on each device size you list.",
+    "plain": "Screenshots must show the app being used, not only a logo, a login page or a splash screen. Apple says more than half of the screenshots for each device must show the app in use.",
+    "usuallyMeans": "Most screenshots were marketing art, a login or splash screen, iPhone images stretched into the iPad slot, or screens the current app no longer has.",
+    "whatToDo": "Replace them with real captures of the current app for each device size, so that more than half show it in use.",
+    "ourCheck": ""
+  },
+  {
+    "guideline": "2.3.10",
+    "appleCallsIt": "Performance: Accurate Metadata",
+    "plain": "Do not name or show other mobile platforms or app stores in the app or its listing.",
+    "usuallyMeans": "The reviewer saw the word Android, a Google Play badge or an Android status bar in a screenshot, in the description or in the app itself.",
+    "whatToDo": "Search the app, the description and every screenshot for Android, Google Play and other store logos, and remove them.",
+    "ourCheck": ""
+  },
+  {
+    "guideline": "2.4.1",
+    "appleCallsIt": "Performance: Hardware Compatibility",
+    "plain": "An iPhone app should also run properly on iPad. Apple more often reports a broken iPad screen under 2.1(a) or 4, so you may never see this number.",
+    "usuallyMeans": "The reviewer opened the app on an iPad and found a layout that was cut off, stretched or unusable, or a button that did not respond.",
+    "whatToDo": "Open the app at iPad sizes, upright and sideways, and fix every screen that is cut off, stretched or stuck.",
+    "ourCheck": ""
+  },
+  {
+    "guideline": "3.1.1",
+    "appleCallsIt": "Business: Payments - In-App Purchase",
+    "plain": "Anything digital you sell inside the app, such as subscriptions, credits or premium features, must be sold through Apple's in-app purchase. Purchases that can be restored need a way to restore them (usually a Restore Purchases button).",
+    "usuallyMeans": "The reviewer found a card form, a Stripe or PayPal checkout or an Upgrade link that sells digital content, or found no Restore Purchases button.",
+    "whatToDo": "Remove the outside checkout for digital items from the iPhone app and sell those items with in-app purchase, with a visible Restore Purchases button.",
+    "ourCheck": "R8"
+  },
+  {
+    "guideline": "3.1.1(a)",
+    "appleCallsIt": "Business: Payments - Link to Other Purchase Methods",
+    "plain": "A button or link that sends people out of the app to buy digital goods needs a special permission from Apple, called an entitlement. The United States storefront is the exception: there, apps may include such links without it.",
+    "usuallyMeans": "Rarely quoted on its own, since Apple usually writes 3.1.1; going by the rule's text, the reviewer saw a link or button that sends people to the web to buy digital goods.",
+    "whatToDo": "Decide which countries you will sell in, and outside the United States remove the web purchase link or apply to Apple for the entitlement.",
+    "ourCheck": "R8"
+  },
+  {
+    "guideline": "3.1.2",
+    "appleCallsIt": "Business: Payments - Subscriptions",
+    "plain": "Auto-renewing subscriptions are allowed in any app, but they must follow sub-rules 3.1.2(a) to 3.1.2(c). Subscriptions must also meet the disclosure rules in Schedule 2 of the Apple Developer Program License Agreement, which 3.1.2(c) points to.",
+    "usuallyMeans": "The subscription screen or the listing was missing the plan name, its length or its price, or working links to the Terms of Use (EULA) and the privacy policy.",
+    "whatToDo": "Put the plan name, length, price and working Terms of Use and Privacy Policy links on the subscription screen, and add both links to the App Store listing.",
+    "ourCheck": ""
+  },
+  {
+    "guideline": "3.1.2(c)",
+    "appleCallsIt": "Business: Payments - Subscriptions (Subscription Information)",
+    "plain": "Before you ask someone to subscribe, say clearly what they get and what they will be charged. The message may show plain 3.1.2 instead of 3.1.2(c).",
+    "usuallyMeans": "The subscription screen showed a free trial or a per-month figure larger than the amount actually billed, or did not say what the plan includes.",
+    "whatToDo": "Make the full billed amount and its period the largest price on the screen, and keep trial and per-month figures smaller.",
+    "ourCheck": ""
+  },
+  {
+    "guideline": "3.1.3",
+    "appleCallsIt": "Business: Payments - Other Purchase Methods",
+    "plain": "Only certain kinds of app may take payment outside in-app purchase, for example reader apps, physical goods and one-to-one live services. Even those may not push people inside the app to pay somewhere else, except on the United States storefront and as allowed by 3.1.1(a) (link entitlements) and 3.1.3(a) (reader apps).",
+    "usuallyMeans": "The reviewer saw text or a button in the app that tells people to pay or subscribe on your website.",
+    "whatToDo": "Sort what you sell into digital and physical, and remove any in-app prompt to pay on the web for digital items.",
+    "ourCheck": "R8"
+  },
+  {
+    "guideline": "3.1.3(b)",
+    "appleCallsIt": "Business: Payments - Multiplatform Services",
+    "plain": "People may use plans or content they bought on your website inside the iPhone app, but only if the same items are also sold in the app through in-app purchase. Apple often quotes 3.1.1 for this problem.",
+    "usuallyMeans": "The app unlocked a paid plan bought on the web, and the reviewer found no way to buy that plan in the app with in-app purchase.",
+    "whatToDo": "Offer the same plans as in-app purchases in the iPhone app, and do not show the web checkout there.",
+    "ourCheck": "R8"
+  },
+  {
+    "guideline": "4",
+    "appleCallsIt": "Design (shown as 4.0 - Design)",
+    "plain": "This is Apple's general design rule: the app must be simple, polished and easy to use. The message usually writes the number as 4.0.",
+    "usuallyMeans": "Screens were crowded or badly laid out, most often on an iPad, or sign-in sent the reviewer out of the app into the web browser.",
+    "whatToDo": "Check every screen on the device named in the message, and keep sign-in inside the app instead of opening the browser.",
+    "ourCheck": ""
+  },
+  {
+    "guideline": "4.1",
+    "appleCallsIt": "Design: Copycats",
+    "plain": "Do not copy another app, pretend to be another service, or use another developer's icon, brand or product name in your app's icon or name.",
+    "usuallyMeans": "The name, icon or main screens looked like a well-known app, or used another company's brand or product name.",
+    "whatToDo": "Remove other brands' names and logos from your app name, icon and listing, and redesign any screen that looks like a copy of another app.",
+    "ourCheck": ""
+  },
+  {
+    "guideline": "4.2",
+    "appleCallsIt": "Design: Minimum Functionality",
+    "plain": "An app must be more than a website in a wrapper: it needs features, content and a feel that make it worth having as an app. The related 4.2.2 covers apps that are mostly links, ads or marketing pages.",
+    "usuallyMeans": "The reviewer felt the app was no different from browsing your website, or did too little to be useful.",
+    "whatToDo": "List what the app does that your website in Safari cannot, add real app features if that list is short, and describe them in the review notes.",
+    "ourCheck": ""
+  },
+  {
+    "guideline": "4.2.6",
+    "appleCallsIt": "Design: Minimum Functionality",
+    "plain": "Apps made from a commercial template or an app-building service are rejected unless the owner of the app's content submits them directly.",
+    "usuallyMeans": "Rarely quoted, and usually together with 4.3; the reviewer saw an app that looked template-made, or one not submitted by the business that owns its content.",
+    "whatToDo": "Submit from your own developer account, and remove every builder badge, default title, default icon and sample content.",
+    "ourCheck": "R10"
+  },
+  {
+    "guideline": "4.3",
+    "appleCallsIt": "Design: Spam",
+    "plain": "Apple rejects duplicate and low-effort apps as spam. By Apple's text, 4.3(a) bans submitting the same app under several bundle IDs, and 4.3(b) covers apps that are no different from what is already widely available, including crowded categories such as dating, wallpapers or fortune telling. In practice, rejection messages also use 4.3(a) for apps that look too similar to other apps.",
+    "usuallyMeans": "The app shared its code, its listing or its idea with apps already on the store, with only small differences.",
+    "whatToDo": "Change what makes the app yours (content, features, design and listing) before you send it again, because sending near-copies again and again can cost you the developer account.",
+    "ourCheck": ""
+  },
+  {
+    "guideline": "4.3(a)",
+    "appleCallsIt": "Design: Spam",
+    "plain": "By its text, this rule bans sending the same app under several app IDs (bundle IDs). In practice Apple also uses it when your app looks too much like other apps, including other developers' apps built from the same template.",
+    "usuallyMeans": "Apple found that the app shares its code, listing or idea with other apps, with only small differences, and it usually does not say which part matched.",
+    "whatToDo": "Ask App Review whether the match is in the code, the listing or the idea, then replace template screens, text and artwork with your own.",
+    "ourCheck": ""
+  },
+  {
+    "guideline": "4.8",
+    "appleCallsIt": "Design: Login Services",
+    "plain": "If people sign in mainly with a third-party login such as Google or Facebook, you must also offer an equal option that collects only name and email, lets people hide their email and does not track them for ads without consent. Sign in with Apple meets this, and an app that uses only its own email login does not need it.",
+    "usuallyMeans": "The sign-in screen offered Google or another social login, and no option with those three privacy features.",
+    "whatToDo": "Add Sign in with Apple, or another login that meets all three points, next to the social login button.",
+    "ourCheck": "R7"
+  },
+  {
+    "guideline": "5.1",
+    "appleCallsIt": "Legal: Privacy",
+    "plain": "This is the umbrella privacy rule. The message almost always names a sub-rule, 5.1.1 for collecting data or 5.1.2 for using and sharing it, sometimes without the part in brackets, so read the quoted text to see which one applies.",
+    "usuallyMeans": "Most often a missing or broken privacy policy link, a permission request with no clear reason, no way to delete an account, or personal data sent to another company without asking.",
+    "whatToDo": "Find the sub-number and the quoted sentence in the message, then look up that exact row.",
+    "ourCheck": "R5"
+  },
+  {
+    "guideline": "5.1.1",
+    "appleCallsIt": "Legal: Privacy - Data Collection and Storage",
+    "plain": "This rule covers how an app collects and stores personal data. Its lettered parts say which problem Apple found: (i) the privacy policy, (ii) asking permission, (v) account sign-in and deletion. Apple often writes plain 5.1.1, so read the description in the message.",
+    "usuallyMeans": "Most often there is no privacy policy link inside the app, no way to delete an account, or a permission request that does not say why.",
+    "whatToDo": "Read the description under the guideline number in the message to see which part applies, then check the privacy link, the delete-account option and each permission request.",
+    "ourCheck": "R5, R6"
+  },
+  {
+    "guideline": "5.1.1(i)",
+    "appleCallsIt": "Legal: Privacy - Data Collection and Storage",
+    "plain": "Every app needs a privacy policy that is linked on the App Store listing and easy to open inside the app. It must say what data you collect, how you use it, who you share it with, how long you keep it and how users can ask for deletion.",
+    "usuallyMeans": "The policy link was missing, broken or hard to find in the app, or the policy did not mention data the app collects or shares, for example data sent to an AI service.",
+    "whatToDo": "Open the policy from inside the app and from the listing, then check that it names every kind of data and every outside service the app uses.",
+    "ourCheck": "R5"
+  },
+  {
+    "guideline": "5.1.1(ii)",
+    "appleCallsIt": "Legal: Privacy - Data Collection and Storage",
+    "plain": "Ask before you collect user data, and say clearly why you need each permission, such as camera, location or microphone.",
+    "usuallyMeans": "A permission pop-up gave a vague reason or none, for example only naming the camera or location without saying what the app does with it.",
+    "whatToDo": "Rewrite each permission text as one full sentence that names the feature and gives an example of how the data is used.",
+    "ourCheck": ""
+  },
+  {
+    "guideline": "5.1.1(v)",
+    "appleCallsIt": "Legal: Privacy - Data Collection and Storage",
+    "plain": "If people can create an account, they must be able to start deleting it inside the app. An app with no real account features should also work without forcing a login.",
+    "usuallyMeans": "The reviewer found no Delete account option in the app, only a way to deactivate or a request to email support, or had to log in to use features that need no account.",
+    "whatToDo": "Add a Delete account button in the account settings that removes the account and its data, with a confirmation step.",
+    "ourCheck": "R6"
+  },
+  {
+    "guideline": "5.1.2(i)",
+    "appleCallsIt": "Legal: Privacy - Data Use and Sharing",
+    "plain": "Get permission before you use, send or share someone's personal data, and say where it goes, including to an outside AI service. Tracking people across other companies' apps and websites needs Apple's tracking permission prompt.",
+    "usuallyMeans": "The app sent personal data to an AI service without first saying what is sent and to whom and asking for permission, or it tracked users without showing the tracking prompt.",
+    "whatToDo": "Before any personal data leaves the app, show a screen that says what is sent, names the company that receives it and asks for a yes, and name that company in the privacy policy.",
+    "ourCheck": ""
+  },
+  {
+    "guideline": "5.2.1",
+    "appleCallsIt": "Legal: Intellectual Property",
+    "plain": "Do not use other people's trademarks, copyrighted work or patented ideas without permission, and submit only apps you own or have a licence for.",
+    "usuallyMeans": "The app or its listing used another company's name, logo or content, or the seller name on the account did not match the brand the app is for.",
+    "whatToDo": "Remove the third-party material or send Apple written proof that you may use it, and publish under the account of the business that owns the brand.",
+    "ourCheck": ""
+  },
+  {
+    "guideline": "5.6",
+    "appleCallsIt": "Legal: Developer Code of Conduct",
+    "plain": "Be honest with users and with Apple: no tricks, no hidden behaviour, no charging for things you do not deliver. Its sub-rules cover App Store reviews, including replies and the ban on home-made rate-us pop-ups (5.6.1), your identity (5.6.2), discovery fraud such as gaming charts, search, reviews or referrals (5.6.3), and app quality (5.6.4), and breaking it can end your developer account.",
+    "usuallyMeans": "Recent messages say only that Apple saw unusual behaviour it links to fraud and features that looked hidden during review (hidden features are rule 2.5.19, code downloaded after review is 2.5.2).",
+    "whatToDo": "Remove or declare anything that behaves differently for the reviewer than for users, such as remote switches, hidden screens or code loaded after review, and describe every feature in the review notes.",
+    "ourCheck": ""
+  },
+  {
+    "guideline": "5.6.2",
+    "appleCallsIt": "Legal: Developer Code of Conduct - Developer Identity",
+    "plain": "What you tell Apple and customers about yourself, your business and your app must be true and up to date. Apple quotes this number mostly in account warnings, such as a pending termination notice, not in ordinary app rejections.",
+    "usuallyMeans": "Apple believes the account or the app gave false or misleading details about who you are or what the app is, and often does not say which detail.",
+    "whatToDo": "Check that your developer name, contact details and listing match your real identity and the app, then reply through the appeal route named in the notice.",
     "ourCheck": ""
   }
 ]
