@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import type { Run } from "@/lib/types";
 
 const BUSY_LABEL: Partial<Record<Run["stage"], string>> = {
@@ -10,28 +10,41 @@ const BUSY_LABEL: Partial<Record<Run["stage"], string>> = {
   rechecking: "Checking again…",
 };
 
+async function post(url: string, body?: unknown): Promise<Run> {
+  const res = await fetch(url, {
+    method: "POST",
+    ...(body === undefined ? {} : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(data.error || `Request failed (${res.status})`);
+  }
+  return (await res.json()) as Run;
+}
+
 export default function MainAction({ run, onUpdate }: { run: Run; onUpdate: (run: Run) => void }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  const [askRepo, setAskRepo] = useState(false);
+  const [repoUrl, setRepoUrl] = useState("");
 
   const action =
     run.stage === "reviewed"
-      ? { label: "Fix with Devin", path: "fix", busy: "Starting Devin…" }
+      ? { label: "Fix these for me", path: "fix", busy: "Starting Devin…" }
       : run.stage === "fixed"
         ? { label: "Check again", path: "recheck", busy: "Starting the re-check…" }
         : null;
   const busyLabel = BUSY_LABEL[run.stage];
+  const needsRepo = run.stage === "reviewed" && !run.repoUrl;
 
   if (!action && !busyLabel) return null;
 
-  async function go() {
-    if (!action) return;
+  async function send(request: () => Promise<Run>) {
     setPending(true);
     setError("");
     try {
-      const res = await fetch(`/api/runs/${run.id}/${action.path}`, { method: "POST" });
-      if (!res.ok) throw new Error(`Request failed (${res.status})`);
-      onUpdate((await res.json()) as Run);
+      onUpdate(await request());
+      setAskRepo(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong");
     } finally {
@@ -39,13 +52,58 @@ export default function MainAction({ run, onUpdate }: { run: Run; onUpdate: (run
     }
   }
 
+  function go() {
+    if (!action) return;
+    if (needsRepo) {
+      setAskRepo(true);
+      return;
+    }
+    void send(() => post(`/api/runs/${run.id}/${action.path}`));
+  }
+
+  function saveRepo(e: FormEvent) {
+    e.preventDefault();
+    void send(() => post(`/api/runs/${run.id}/repo`, { repoUrl }));
+  }
+
   const busy = pending || !action;
   return (
     <div className="main-action">
-      <button type="button" className="btn-primary" onClick={go} disabled={busy} aria-busy={busy}>
-        {busy && <span className="spinner" aria-hidden="true" />}
-        {pending ? action?.busy : action ? action.label : busyLabel}
-      </button>
+      {!(askRepo && needsRepo) && (
+        <button type="button" className="btn-primary" onClick={go} disabled={busy} aria-busy={busy}>
+          {busy && <span className="spinner" aria-hidden="true" />}
+          {pending ? action?.busy : action ? action.label : busyLabel}
+        </button>
+      )}
+      {askRepo && needsRepo && (
+        <form className="repo-panel" onSubmit={saveRepo} aria-labelledby="repo-panel-text">
+          <p id="repo-panel-text">
+            To fix your app we need its code on GitHub. In Lovable: press <strong>+</strong> next to the chat
+            box, choose <strong>Project</strong>, then <strong>GitHub</strong>, and connect. Then paste the
+            repository link here.
+          </p>
+          <label>
+            <span>Repository link</span>
+            <input
+              type="url"
+              required
+              value={repoUrl}
+              onChange={(e) => setRepoUrl(e.target.value)}
+              placeholder="https://github.com/you/your-app"
+              autoFocus
+            />
+          </label>
+          <div className="repo-panel-actions">
+            <button type="button" className="btn-secondary" onClick={() => setAskRepo(false)} disabled={pending}>
+              Cancel
+            </button>
+            <button type="submit" className="btn-primary" disabled={pending} aria-busy={pending}>
+              {pending && <span className="spinner" aria-hidden="true" />}
+              {pending ? "Reading your code…" : "Save and fix"}
+            </button>
+          </div>
+        </form>
+      )}
       {error && (
         <span className="action-error" role="alert">
           {error}

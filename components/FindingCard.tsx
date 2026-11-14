@@ -1,5 +1,7 @@
+import { PLAIN_WORDS } from "@/lib/plainWords";
 import type { Finding } from "@/lib/types";
 import Evidence from "./Evidence";
+import EvidenceDetails from "./EvidenceDetails";
 import StatePill from "./StatePill";
 import { displayFor, initialDisplay, type Display } from "./findingDisplay";
 
@@ -23,6 +25,8 @@ export default function FindingCard({
   const changed = finding.finalState !== "" && first.label !== display.label;
   const shots = finding.evidence.filter((e) => !("file" in e) && e.kind === "screenshot");
   const others = finding.evidence.filter((e) => !shots.includes(e));
+  const plain = PLAIN_WORDS[finding.ruleId];
+  const passed = display.tone === "green" && finding.state === "pass";
 
   return (
     <article className={`finding finding-${display.tone}`}>
@@ -31,7 +35,21 @@ export default function FindingCard({
         <StatePill display={display} />
       </header>
       <h3 className="finding-title">{finding.title}</h3>
-      <p className="finding-detail">{finding.detail}</p>
+
+      <dl className="plain">
+        <div>
+          <dt>{passed ? "What reviewers reject" : "The problem"}</dt>
+          <dd>{plain.problem}</dd>
+        </div>
+        <div>
+          <dt>Why Apple cares</dt>
+          <dd>{plain.whyAppleCares}</dd>
+        </div>
+        <div>
+          <dt>{passed ? "How it gets fixed" : "What we do"}</dt>
+          <dd>{plain.whatWeDo}</dd>
+        </div>
+      </dl>
 
       {display.note && (
         <p className="human-step">
@@ -39,21 +57,24 @@ export default function FindingCard({
         </p>
       )}
 
-      {finding.evidence.length > 0 && (
-        <div className="evidence">
-          <p className="evidence-heading">Evidence</p>
-          {others.map((e, i) => (
-            <Evidence key={`o${i}`} item={e} runId={runId} repoUrl={repoUrl} />
-          ))}
-          {shots.length > 0 && (
-            <div className="evidence-shots">
-              {shots.map((e, i) => (
-                <Evidence key={`s${i}`} item={e} runId={runId} repoUrl={repoUrl} />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      <EvidenceDetails openOnWide={display.tone === "red"}>
+        <p className="finding-detail">{finding.detail}</p>
+        {finding.evidence.length > 0 && (
+          <div className="evidence">
+            <p className="evidence-heading">Evidence</p>
+            {others.map((e, i) => (
+              <Evidence key={`o${i}`} item={e} runId={runId} repoUrl={repoUrl} />
+            ))}
+            {shots.length > 0 && (
+              <div className="evidence-shots">
+                {shots.map((e, i) => (
+                  <Evidence key={`s${i}`} item={e} runId={runId} repoUrl={repoUrl} />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </EvidenceDetails>
 
       <footer className="finding-meta">
         <span>

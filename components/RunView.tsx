@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { Run } from "@/lib/types";
+import CheckProgress from "./CheckProgress";
 import DevinBoard from "./DevinBoard";
 import MainAction from "./MainAction";
 import Timeline from "./Timeline";
 import VerdictLetter from "./VerdictLetter";
-import { repoName } from "./findingDisplay";
+import { runName } from "./findingDisplay";
+import "./plain.css";
 
 const POLL_MS = 3000;
 
@@ -34,7 +36,7 @@ export default function RunView({ initialRun }: { initialRun: Run }) {
       <div className="run-head">
         <div>
           <p className="eyebrow">Run {run.id}</p>
-          <h1 className="run-title">{repoName(run.repoUrl)}</h1>
+          <h1 className="run-title">{runName(run)}</h1>
         </div>
         <MainAction run={run} onUpdate={setRun} />
         {run.stage === "done" && (
@@ -45,6 +47,8 @@ export default function RunView({ initialRun }: { initialRun: Run }) {
       </div>
 
       <Timeline stage={run.stage} error={run.error} />
+
+      <CheckProgress run={run} />
 
       <VerdictLetter run={run} />
 

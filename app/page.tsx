@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { connection } from "next/server";
 import { listRuns } from "@/lib/store";
 import RunList from "@/components/RunList";
+import StartForm from "@/components/StartForm";
 
 async function Runs() {
   await connection();
@@ -13,26 +14,14 @@ export default function Home() {
   return (
     <main className="home">
       <section className="hero">
-        <h1 className="hero-title">FixThenShip</h1>
+        <h1 className="hero-title">Will Apple reject your app?</h1>
         <p className="hero-line">
-          A dress rehearsal for App Review. We use your app like a reviewer, fix what would likely get it
-          rejected, and check again.
+          Paste your app&apos;s link. We use it the way an App Store reviewer would and show you what would
+          likely get it rejected, in about two minutes.
         </p>
       </section>
 
-      <form className="review-form" action="/api/runs" method="post">
-        <label>
-          <span>GitHub repository address</span>
-          <input name="repoUrl" type="url" required placeholder="https://github.com/you/your-app" />
-        </label>
-        <label>
-          <span>App address</span>
-          <input name="appUrl" type="url" required placeholder="https://your-app.example.com" />
-        </label>
-        <button type="submit" className="btn-primary">
-          Review my app
-        </button>
-      </form>
+      <StartForm />
 
       <section className="runs" aria-labelledby="runs-title">
         <div className="section-head">

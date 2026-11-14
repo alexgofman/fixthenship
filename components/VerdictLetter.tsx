@@ -1,6 +1,6 @@
 import type { Run } from "@/lib/types";
 import FindingCard from "./FindingCard";
-import { formatDate, isRechecked, repoName, sortFindings, summaryLine } from "./findingDisplay";
+import { formatDate, isRechecked, rejectionSentence, runName, sortFindings, summaryLine } from "./findingDisplay";
 
 export default function VerdictLetter({ run }: { run: Run }) {
   const findings = sortFindings(run.findings);
@@ -14,7 +14,7 @@ export default function VerdictLetter({ run }: { run: Run }) {
       </div>
 
       <header className="letter-head">
-        <h2 id="letter-title">Review of {repoName(run.repoUrl)}</h2>
+        <h2 id="letter-title">Review of {runName(run)}</h2>
         <dl className="letter-meta">
           <div>
             <dt>Date</dt>
@@ -22,14 +22,16 @@ export default function VerdictLetter({ run }: { run: Run }) {
               <time dateTime={run.createdAt}>{formatDate(run.createdAt)}</time>
             </dd>
           </div>
-          <div>
-            <dt>Repository</dt>
-            <dd>
-              <a href={run.repoUrl} target="_blank" rel="noreferrer">
-                {run.repoUrl}
-              </a>
-            </dd>
-          </div>
+          {run.repoUrl && (
+            <div>
+              <dt>Repository</dt>
+              <dd>
+                <a href={run.repoUrl} target="_blank" rel="noreferrer">
+                  {run.repoUrl}
+                </a>
+              </dd>
+            </div>
+          )}
           <div>
             <dt>App</dt>
             <dd>
@@ -41,7 +43,14 @@ export default function VerdictLetter({ run }: { run: Run }) {
         </dl>
       </header>
 
-      <p className="letter-summary">{summaryLine(run)}</p>
+      {rechecked || run.findings.length === 0 ? (
+        <p className="letter-summary">{summaryLine(run)}</p>
+      ) : (
+        <>
+          <p className="letter-summary">{rejectionSentence(run)}</p>
+          <p className="letter-counts">{summaryLine(run)}</p>
+        </>
+      )}
       <p className="letter-intro">
         {rechecked
           ? "We used your app again after the fixes. Each guideline below shows where it stands now."

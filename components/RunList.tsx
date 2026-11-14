@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { Run } from "@/lib/types";
-import { countFindings, formatDateTime, isInProgress, repoName } from "./findingDisplay";
+import { countFindings, formatDateTime, isInProgress, runName } from "./findingDisplay";
 
 const POLL_MS = 3000;
 
@@ -34,7 +34,7 @@ export default function RunList({ initialRuns }: { initialRuns: Run[] }) {
           <li key={run.id}>
             <Link href={`/runs/${run.id}`} className="run-card">
               <div className="run-card-top">
-                <span className="run-card-name">{repoName(run.repoUrl)}</span>
+                <span className="run-card-name">{runName(run)}</span>
                 <span className={`stage-chip stage-${run.stage}`}>
                   {isInProgress(run.stage) && <span className="live-dot" aria-hidden="true" />}
                   {run.stage}
