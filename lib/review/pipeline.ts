@@ -107,6 +107,14 @@ async function scanCode(repoUrl: string, runDir: string, deps: ReviewDeps): Prom
   return [...(await deps.scan(repoDir))].sort(byRule);
 }
 
+/** Shown instead of git's own error, which names folders on this machine. */
+export const REPO_UNREADABLE =
+  "We could not open that GitHub repository. Check the link, and make sure the repository is public or that FixThenShip has access.";
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 /** The check result an app finding was made from, so scan findings can be folded in after the checks. */
 function resultOf(f: Finding): CheckResult {
   const outcome = f.state === "pass" ? "pass" : f.state === "fail" ? "fail" : "not_checked";
@@ -120,7 +128,13 @@ function resultOf(f: Finding): CheckResult {
 export async function addRepo(runId: string, repoUrl: string, overrides: Partial<ReviewDeps> = {}): Promise<Run> {
   const deps = { ...defaultDeps, ...overrides };
   await loadRun(runId);
-  let findings = await scanCode(repoUrl, path.join(runsDir(), runId), deps);
+  let findings: Finding[];
+  try {
+    findings = await scanCode(repoUrl, path.join(runsDir(), runId), deps);
+  } catch (error) {
+    console.error(`addRepo ${runId}: could not read ${repoUrl}: ${errorMessage(error)}`);
+    throw new Error(REPO_UNREADABLE);
+  }
   // Saved only once the scan works, so a wrong address can be corrected and tried again.
   const run = await loadRun(runId);
   for (const f of run.findings) {
@@ -144,8 +158,17 @@ export async function reviewApp(runId: string, overrides: Partial<ReviewDeps> = 
     run.error = "";
     await saveRun(run);
 
-    // Without a repository the review uses the app only.
-    run.findings = run.repoUrl ? await scanCode(run.repoUrl, runDir, deps) : [];
+    // Without a repository the review uses the app only. A repository that cannot be opened (private or
+    // mistyped) is dropped, so the app is still reviewed and the repository can be added afterwards.
+    run.findings = [];
+    if (run.repoUrl) {
+      try {
+        run.findings = await scanCode(run.repoUrl, runDir, deps);
+      } catch (error) {
+        console.error(`review ${runId}: could not read ${run.repoUrl}: ${errorMessage(error)}`);
+        run.repoUrl = "";
+      }
+    }
     await saveRun(run);
 
     run.stage = "checking";
@@ -172,7 +195,7 @@ export async function reviewApp(runId: string, overrides: Partial<ReviewDeps> = 
     run.stage = "reviewed";
     await saveRun(run);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = errorMessage(error);
     try {
       const failed = run ?? (await loadRun(runId));
       failed.stage = "failed";

@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { REVIEW_RULES, addRepo, gitCloneArgs, reviewApp, type ReviewDeps } from "../../lib/review/pipeline";
+import { REPO_UNREADABLE, REVIEW_RULES, addRepo, gitCloneArgs, reviewApp, type ReviewDeps } from "../../lib/review/pipeline";
 import { createRun, loadRun, saveRun } from "../../lib/store";
 import type { CheckResult, Finding, RuleId } from "../../lib/types";
 
@@ -104,15 +104,36 @@ describe("reviewApp", () => {
   });
 
   it("records a thrown error on the run", async () => {
-    const run = await createRun("https://github.com/o/missing", "https://app.test");
+    const run = await createRun("", "https://app.test");
     await reviewApp(run.id, {
-      clone: async () => {
-        throw new Error("Repository not found");
+      waitForApp: async () => {
+        throw new Error("Network down");
       },
     });
     const saved = await loadRun(run.id);
     expect(saved.stage).toBe("failed");
-    expect(saved.error).toBe("Repository not found");
+    expect(saved.error).toBe("Network down");
+  });
+
+  it("reviews the app on its own when the repository cannot be opened", async () => {
+    const run = await createRun("https://github.com/o/private", "https://app.test");
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    await reviewApp(run.id, {
+      clone: async () => {
+        throw new Error("Command failed: git clone /Users/me/runs/x/repo fatal: could not read Username");
+      },
+      waitForApp: async () => true,
+      runChecks: async (_appUrl, _outDir, _ruleIds, options) => {
+        const result: CheckResult = { ruleId: "R1", outcome: "pass", reason: "Loads.", steps: [], screenshots: [] };
+        await options.onResult?.(result);
+        return [result];
+      },
+    });
+    log.mockRestore();
+
+    const saved = await loadRun(run.id);
+    expect(saved).toMatchObject({ stage: "reviewed", repoUrl: "", error: "" });
+    expect(saved.findings).toEqual([expect.objectContaining({ ruleId: "R1", source: "app", state: "pass" })]);
   });
 
   it("reviews the app without cloning when the run has no repository", async () => {
@@ -170,6 +191,22 @@ describe("addRepo", () => {
     expect(byRule.R10).toMatchObject({ source: "code", state: "risk", confidence: "low" });
     expect(byRule.R10.detail).toContain("The app check passed on the live app: No badge on screen.");
     expect(await loadRun(run.id)).toEqual(saved);
+  });
+});
+
+describe("addRepo errors", () => {
+  it("refuses an unreadable repository with a fixed sentence and keeps the run as it was", async () => {
+    const run = await createRun("", "https://app.test");
+    run.stage = "reviewed";
+    await saveRun(run);
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const clone = async () => {
+      throw new Error("Command failed: git clone /Users/me/runs/x/repo");
+    };
+    await expect(addRepo(run.id, "https://github.com/o/private", { clone })).rejects.toThrow(REPO_UNREADABLE);
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("/Users/me/runs/x/repo"));
+    log.mockRestore();
+    expect(await loadRun(run.id)).toEqual(run);
   });
 });
 
