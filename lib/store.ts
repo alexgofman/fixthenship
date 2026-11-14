@@ -67,7 +67,7 @@ export async function loadRun(runId: string): Promise<Run> {
 
 export async function listRuns(): Promise<Run[]> {
   await ensureExampleRun();
-  const entries = await readdir(runsDir(), { withFileTypes: true });
+  const entries = await readdir(/*turbopackIgnore: true*/ runsDir(), { withFileTypes: true });
   const runs: Run[] = [];
   for (const entry of entries) {
     if (!entry.isDirectory() || !isValidRunId(entry.name)) continue;
