@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import type { Run } from "@/lib/types";
 import CheckProgress from "./CheckProgress";
 import DevinBoard from "./DevinBoard";
+import GuidelinesNote from "./GuidelinesNote";
 import MainAction from "./MainAction";
 import RejectionDecoder from "./RejectionDecoder";
 import RunStatus from "./RunStatus";
@@ -58,6 +59,7 @@ export default function RunView({ initialRun }: { initialRun: Run }) {
         <div>
           <p className="eyebrow">Run {run.id}</p>
           <h1 className="run-title">{runName(run)}</h1>
+          <GuidelinesNote check={run.guidelines} />
         </div>
         <MainAction run={run} onUpdate={setRun} />
         {run.stage === "done" && (

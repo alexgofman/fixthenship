@@ -36,6 +36,7 @@ const {
 const { RULES } = await import("../lib/rules.ts");
 const { FIX_STATUS_WORDS, PLAIN_WORDS } = await import("../lib/plainWords.ts");
 const { decode, findGuidelines, ourChecks } = await import("../lib/decoder.ts");
+const { guidelinesNoteParts } = await import("../lib/guidelines/sections.mjs");
 process.emitWarning = emitWarning;
 const CHECKLIST = JSON.parse(await readFile(path.join(ROOT, "lib", "content", "checklist.json"), "utf8")).groups;
 
@@ -86,6 +87,14 @@ export function esc(value) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+/** The note under the heading on whether Apple's guidelines changed, as on the run page. */
+export function guidelinesNoteHtml(run) {
+  if (!run.guidelines) return "";
+  const parts = guidelinesNoteParts(run.guidelines);
+  const html = parts.map((p) => (typeof p === "string" ? esc(p) : link(p.href, esc(p.text)))).join("");
+  return `<p class="muted small" style="margin:4px 0 0;max-width:70ch">${html}</p>`;
 }
 
 function wasFixed(f) {
@@ -446,7 +455,7 @@ ${EXTRA_CSS}
 <p class="export-banner">${esc(SAVED_COPY_LINE)}</p>
 <header class="site-header"><div class="site-header-inner"><span class="brand">${brandMark}<span class="brand-word">Fix<span>Then</span>Ship</span></span><span class="site-tag">App Review rehearsal</span></div></header>
 <main class="run-page"><div class="run">
-<div class="run-head"><div><p class="eyebrow">Run ${esc(run.id)}</p><h1 class="run-title">${esc(name)}</h1></div></div>
+<div class="run-head"><div><p class="eyebrow">Run ${esc(run.id)}</p><h1 class="run-title">${esc(name)}</h1>${guidelinesNoteHtml(run)}</div></div>
 ${rejectionDecoderHtml(run)}
 ${verdictLetter(run, copied)}
 ${devinBoard(run.fixes ?? [])}
