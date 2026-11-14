@@ -132,4 +132,14 @@ describe("export-run", () => {
     expect(html).toContain("Review of habit-tracker.example.com");
     expect(html).not.toContain("<dt>Repository</dt>");
   });
+
+  it("uses the site's own logo and web fonts", async () => {
+    const { html } = await exportExample();
+    const icon = await readFile(path.join(process.cwd(), "app", "icon.svg"), "utf8");
+    expect(html).toContain(icon.trim().replace(/^<svg\b/, '<svg class="brand-mark" aria-hidden="true"'));
+    const layout = await readFile(path.join(process.cwd(), "app", "layout.tsx"), "utf8");
+    for (const m of layout.matchAll(/href="(https:\/\/fonts\.googleapis\.com\/[^"]+)"/g)) {
+      expect(html).toContain(`href="${m[1].replace(/&/g, "&amp;")}"`);
+    }
+  });
 });

@@ -143,7 +143,7 @@ function evidenceHtml(item, run, copied) {
   const available = rel !== null && copied.has(rel);
   if (item.kind === "screenshot") {
     const img = available
-      ? link(relHref(rel), `<img src="${esc(relHref(rel))}" alt="${esc(item.caption)}" loading="lazy">`)
+      ? link(relHref(rel), `<img src="${esc(relHref(rel))}" alt="${esc(item.caption)}">`)
       : `<div class="shot-placeholder" role="img" aria-label="Screenshot unavailable: ${esc(item.caption)}"><span>Screenshot unavailable</span></div>`;
     return `<figure class="evidence-shot">${img}<figcaption>${esc(item.caption)}</figcaption></figure>`;
   }
@@ -328,13 +328,14 @@ ${fixed}\n${needs}\n${failing}\n${unchecked}\n${notes}
 }
 
 /** The whole page as one HTML string; `copied` holds the evidence paths that exist next to it. */
-export function renderRunHtml(run, css, copied = new Set()) {
+export function renderRunHtml(run, css, copied = new Set(), { brandMark = "", fontLinks = [] } = {}) {
   const name = runName(run);
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+${fontLinks.map((href) => `<link rel="stylesheet" href="${esc(href)}">`).join("\n")}
 <title>${esc(name)} · FixThenShip review</title>
 <style>
 ${css}
@@ -343,7 +344,7 @@ ${EXTRA_CSS}
 </head>
 <body>
 <p class="export-banner">${esc(SAVED_COPY_LINE)}</p>
-<header class="site-header"><div class="site-header-inner"><span class="brand"><span class="brand-mark" aria-hidden="true">✓</span>FixThenShip</span><span class="site-tag">App Review rehearsal</span></div></header>
+<header class="site-header"><div class="site-header-inner"><span class="brand">${brandMark}<span class="brand-word">Fix<span>Then</span>Ship</span></span><span class="site-tag">App Review rehearsal</span></div></header>
 <main class="run-page"><div class="run">
 <div class="run-head"><div><p class="eyebrow">Run ${esc(run.id)}</p><h1 class="run-title">${esc(name)}</h1></div></div>
 ${verdictLetter(run, copied)}
@@ -406,6 +407,18 @@ export async function readStyles() {
   return parts.map((css, i) => `/* ${STYLE_FILES[i].split(path.sep).join("/")} */\n${css}`).join("\n");
 }
 
+/** The logo (app/icon.svg) and the web-font stylesheets that app/layout.tsx links, read now like the styles. */
+export async function readSiteChrome() {
+  const icon = await readFile(path.join(ROOT, "app", "icon.svg"), "utf8").catch(() => "");
+  const brandMark = icon
+    .replace(/<\?xml[^>]*>\s*/, "")
+    .trim()
+    .replace(/^<svg\b/, '<svg class="brand-mark" aria-hidden="true"');
+  const layout = await readFile(path.join(ROOT, "app", "layout.tsx"), "utf8").catch(() => "");
+  const fontLinks = [...layout.matchAll(/href="(https:\/\/fonts\.googleapis\.com\/[^"]+)"/g)].map((m) => m[1]);
+  return { brandMark: brandMark.startsWith("<svg") ? brandMark : "", fontLinks };
+}
+
 export async function exportRun(arg, outDir) {
   const run = await loadRunArg(arg);
   if (run.stage !== "done") throw new Error(`Run ${run.id} is not finished yet (stage: ${run.stage}).`);
@@ -414,7 +427,7 @@ export async function exportRun(arg, outDir) {
   const css = await readStyles();
   const copied = await copyEvidence(run, out);
   const file = path.join(out, "index.html");
-  await writeFile(file, renderRunHtml(run, css, copied), "utf8");
+  await writeFile(file, renderRunHtml(run, css, copied, await readSiteChrome()), "utf8");
   return { file, copied: [...copied] };
 }
 
