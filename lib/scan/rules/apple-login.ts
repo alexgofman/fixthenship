@@ -1,5 +1,5 @@
 import { codeEvidence, makeFinding, quote, type RuleCheck } from "../finding";
-import { findAll } from "../match";
+import { findAll, notDoc } from "../match";
 
 const THIRD_PARTY_LOGIN = new RegExp(
   [
@@ -13,12 +13,13 @@ const THIRD_PARTY_LOGIN = new RegExp(
     .join("|"),
   "gi",
 );
-/** "apple-touch-icon" and "apple-mobile-web-app-*" are web metadata, not a login option. */
-const APPLE = /apple(?![-_]?(?:touch|mobile))/i;
+/** An actual Sign in with Apple option; the bare word also appears in `-apple-system` fonts and `AppleWebKit` user agents. */
+const APPLE =
+  /(?:sign|log)\s*in with apple|continue with apple|(?:provider\s*:\s*|signInWithOAuth\(\s*)["'`]apple["'`]|AppleAuthProvider|OAuthProvider\(\s*["'`]apple\.com|appleid\.apple\.com|AppleID\.auth/i;
 
 export const appleLogin: RuleCheck = (files) => {
   const logins = findAll(files, THIRD_PARTY_LOGIN);
-  if (logins.length === 0 || findAll(files, APPLE).length > 0) return null;
+  if (logins.length === 0 || findAll(files, APPLE, (f) => notDoc(f) && !/\.(test|spec)\.[jt]sx?$/.test(f.path)).length > 0) return null;
   const providers = [...new Set(logins.map((h) => (/facebook/i.test(h.match) ? "Facebook" : "Google")))];
   const offered = providers.join(" and ");
   return makeFinding(

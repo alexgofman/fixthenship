@@ -145,6 +145,21 @@ describe("scanRepo folders", () => {
     expect(finding.evidence.map((e) => ("file" in e ? `${e.file}:${e.line}` : ""))).toEqual(["src/Shop.jsx:3", "src/Plans.jsx:1"]);
   });
 
+  it("R7 is not switched off by the word apple outside a Sign in with Apple option", async () => {
+    await cp(path.join(FIXTURES, "r7", "bad"), dir, { recursive: true });
+    await writeFile(
+      path.join(dir, "src", "platform.js"),
+      'export const ios = /AppleWebKit/.test(navigator.userAgent);\nexport const font = "-apple-system, BlinkMacSystemFont";\n',
+    );
+    await writeFile(path.join(dir, "index.html"), '<link rel="apple-touch-icon" href="/icon.png" />\n');
+    const [finding] = await scanRepo(dir);
+    expect(finding.ruleId).toBe("R7");
+    expect(finding.evidence[0]).toMatchObject({ file: "src/Login.jsx", line: 4 });
+
+    await writeFile(path.join(dir, "src", "Apple.jsx"), "export const Apple = () => <button>Sign in with Apple</button>;\n");
+    expect(await scanRepo(dir)).toEqual([]);
+  });
+
   it("does not count a builder's packages and client code, which nobody sees, as branding", async () => {
     await cp(path.join(FIXTURES, "r10", "good"), dir, { recursive: true });
     await writeFile(
