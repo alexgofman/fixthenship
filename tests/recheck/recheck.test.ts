@@ -300,6 +300,26 @@ describe("recheckApp", () => {
     });
   });
 
+  it("lets the app check alone decide R8, whose fix keeps the web checkout in the code", async () => {
+    await makeRun([finding("R8"), finding("R7"), finding("R5")]);
+    const h = harness();
+
+    await recheckApp("run1", {
+      ...h.deps,
+      mergeFixes: mergedOnly("R8", "R7", "R5"),
+      scan: async () => [finding("R8", "fail", "code"), finding("R7", "fail", "code"), finding("R5", "fail", "code")],
+      runChecks: checksWith({ R7: "fail" }),
+    });
+
+    const saved = byRule(await loadRun("run1"));
+    expect(saved.R8).toMatchObject({
+      finalState: "amber",
+      humanStep: "Selling inside the iPhone app needs in-app purchase; the outside checkout is now hidden there",
+    });
+    expect(saved.R7.finalState).toBe("red");
+    expect(saved.R5.finalState).toBe("red");
+  });
+
   it("ends amber with the link when the merge is refused", async () => {
     await makeRun([finding("R2"), finding("R6")], [fix("R2", 21), fix("R6", 22)]);
     const h = harness();

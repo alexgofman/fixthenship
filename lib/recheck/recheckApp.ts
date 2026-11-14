@@ -305,7 +305,9 @@ export function finalFor(finding: Finding, outcome: Outcome): Pick<Finding, "fin
   const check = outcome.checks.find((c) => c.ruleId === finding.ruleId);
   const hasCheck = REVIEW_RULES.includes(finding.ruleId);
   const looked = hasCheck || finding.source !== "app";
-  if (!looked || scanFinds(outcome.scan, finding.ruleId) || (hasCheck && check?.outcome === "fail")) return red();
+  // A NEVER_GREEN rule's fix can leave its words in the code on purpose (R8 keeps the web checkout): its app check decides alone.
+  const scanBlocks = !(hasCheck && NEVER_GREEN[finding.ruleId]) && scanFinds(outcome.scan, finding.ruleId);
+  if (!looked || scanBlocks || (hasCheck && check?.outcome === "fail")) return red();
   if (hasCheck && check?.outcome !== "pass") {
     const reason = check?.reason ?? "the check did not report a result";
     return { finalState: "amber", humanStep: couldNotRecheckStep(reason), detail: finding.detail };
