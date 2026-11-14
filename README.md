@@ -4,6 +4,8 @@ FixThenShip reviews an AI-built web app the way Apple's App Store reviewer would
 
 Website and a saved copy of a real review: https://fixthenship.netlify.app
 
+Watch the 78-second demo: https://fixthenship.netlify.app/#watch (the file itself: https://fixthenship.netlify.app/demo.mp4)
+
 Built in one day at Eurasian Hack London, 14 November 2026.
 
 ## Why
@@ -19,6 +21,17 @@ AI app builders made building an app easy. App Review is where people get stuck,
 - **An app Apple has already rejected:** paste Apple's message, and each guideline in it is explained in plain words and linked to our own finding.
 
 All three start from the app's web link, the one the app builder gives on Publish. It is not an App Store link.
+
+## What it looks like
+
+Frames from the demo video, recorded on a real run on 14 November 2026.
+
+| | |
+|---|---|
+| ![The live review: a mascot, a status line and the list of checks filling in](docs/screens/1-review.jpg) | ![Apple's rejection message explained guideline by guideline and linked to our findings](docs/screens/2-rejection-explained.jpg) |
+| The review runs in a phone-size browser while you watch. | Apple's rejection message, explained in plain words. |
+| ![The Devin board: seven sessions, each with its pull request](docs/screens/3-devin-fixes.jpg) | ![The finished run: 3 need you, 4 fixed and verified, 3 passed](docs/screens/4-rechecked.jpg) |
+| One Devin session per problem, each a small pull request. | After our own re-check: fixed and verified, or needs you. |
 
 ## How it works
 
