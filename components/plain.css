@@ -61,6 +61,19 @@
   gap: 16px;
 }
 
+.start-form .btn-primary {
+  padding: 14px 22px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.start-form .btn-primary:hover:not(:disabled) {
+  background: var(--accent-dark);
+}
+
 .start-form .optional {
   color: var(--muted);
   font-weight: 400;
