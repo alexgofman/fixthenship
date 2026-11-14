@@ -82,3 +82,56 @@ describe("R4 with react-router", () => {
     expect((await scanRepo(dir)).map((f) => f.ruleId)).not.toContain("R4");
   });
 });
+
+describe("R3 with asChild triggers", () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(path.join(os.tmpdir(), "fixthenship-r3-"));
+    await cp(path.join(FIXTURES, "r3", "good"), dir, { recursive: true });
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("does not flag a button or link that a trigger with asChild wraps", async () => {
+    await writeFile(
+      path.join(dir, "src", "Settings.jsx"),
+      `export default function Settings() {
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <button type="button" className="danger">Delete account</button>
+      </AlertDialogTrigger>
+      <DropdownMenu.Trigger asChild>
+        <a href="#">Menu</a>
+      </DropdownMenu.Trigger>
+    </AlertDialog>
+  );
+}
+`,
+    );
+    expect(await scanRepo(dir)).toEqual([]);
+  });
+
+  it("still flags a dead button next to a trigger", async () => {
+    await writeFile(
+      path.join(dir, "src", "Settings.jsx"),
+      `export default function Settings() {
+  return (
+    <div>
+      <DialogTrigger asChild>
+        <button type="button">Open</button>
+      </DialogTrigger>
+      <button type="button">Share</button>
+    </div>
+  );
+}
+`,
+    );
+    const [finding] = await scanRepo(dir);
+    expect(finding.ruleId).toBe("R3");
+    expect(finding.evidence.map((e) => ("line" in e ? e.line : 0))).toEqual([7]);
+  });
+});

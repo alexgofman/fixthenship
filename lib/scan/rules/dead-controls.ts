@@ -7,6 +7,8 @@ const EMPTY_HANDLER = /\bon[A-Z]\w*\s*=\s*\{\s*(?:\(\s*\w*\s*\)\s*=>|function\s*
 const DEAD_HREF = /^\s*href\s*=\s*\{?\s*["'`](?:#|javascript:\s*(?:void\s*\(\s*0\s*\))?;?)["'`]\s*\}?\s*$/;
 const HANDLER_ATTR = /\bon[A-Z]\w*\s*=|\{\s*\.\.\.|\basChild\b|\bform\s*=|\bformAction\s*=/;
 const TYPE_ATTR = /\btype\s*=\s*\{?\s*["'`](\w+)["'`]/;
+/** Code ending in an opening tag with `asChild`, such as `<DialogTrigger asChild>`, which hands its handler to the child. */
+const AS_CHILD_PARENT = /<[A-Za-z][\w.]*\b[^<>]*\basChild\b[^<>]*>\s*$/;
 
 /** Each opening `<a>`, `<button>` or `<Button>` tag with its attributes, braces included. */
 function openingTags(code: string): { name: string; attrs: string; index: number }[] {
@@ -47,6 +49,7 @@ function deadControls(file: SourceFile): Hit[] {
   }
   for (const tag of openingTags(file.code)) {
     const hit = (match: string) => hits.push({ file: file.path, line: lineOf(file.code, tag.index), match });
+    if (AS_CHILD_PARENT.test(file.code.slice(Math.max(0, tag.index - 300), tag.index))) continue;
     if (tag.name === "a") {
       const href = attrValues(tag.attrs, "href").find((h) => DEAD_HREF.test(h));
       if (href && !HANDLER_ATTR.test(tag.attrs)) hit(href);
