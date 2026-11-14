@@ -1,23 +1,9 @@
 // Relative imports so the tests can load this route without the "@/" alias.
 import { startFixLoop } from "../../../../../lib/fix/loop";
+import { gitHubRepoUrl } from "../../../../../lib/fix/github";
 import { FixStageError, startFixes } from "../../../../../lib/fix/startFixes";
 import { addRepo } from "../../../../../lib/review/pipeline";
 import { isValidRunId, loadRun } from "../../../../../lib/store";
-
-/** `https://github.com/<owner>/<repo>` for a GitHub repository link, otherwise null. */
-function gitHubRepoUrl(value: string): string | null {
-  let url: URL;
-  try {
-    url = new URL(value.trim());
-  } catch {
-    return null;
-  }
-  if (url.protocol !== "https:" && url.protocol !== "http:") return null;
-  if (url.username || url.password || !/^(www\.)?github\.com$/i.test(url.hostname)) return null;
-  const match = url.pathname.match(/^\/([A-Za-z0-9-]+)\/([A-Za-z0-9._-]+?)(?:\.git)?\/?$/);
-  if (!match || match[2] === "." || match[2] === "..") return null;
-  return `https://github.com/${match[1]}/${match[2]}`;
-}
 
 // Adds the repository to a run reviewed without code, scans it, then starts the fixes.
 export async function POST(request: Request, ctx: RouteContext<"/api/runs/[runId]/repo">) {

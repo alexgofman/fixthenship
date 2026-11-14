@@ -1,6 +1,8 @@
 import { connection } from "next/server";
-import { reviewApp } from "@/lib/review/pipeline";
-import { createRun, listRuns } from "@/lib/store";
+// Relative imports so the tests can load this route without the "@/" alias.
+import { gitHubRepoUrl } from "../../../lib/fix/github";
+import { reviewApp } from "../../../lib/review/pipeline";
+import { createRun, listRuns } from "../../../lib/store";
 
 export async function GET() {
   await connection();
@@ -22,9 +24,17 @@ async function readFields(request: Request): Promise<{ repoUrl: string; appUrl: 
 }
 
 export async function POST(request: Request) {
-  const { repoUrl, appUrl, isJson } = await readFields(request);
+  const fields = await readFields(request);
+  const { appUrl, isJson } = fields;
   if (!appUrl) {
     return Response.json({ error: "appUrl is required" }, { status: 400 });
+  }
+  const repoUrl = fields.repoUrl ? gitHubRepoUrl(fields.repoUrl) : "";
+  if (repoUrl === null) {
+    return Response.json(
+      { error: "That is not a GitHub repository link. It looks like https://github.com/you/your-app" },
+      { status: 400 },
+    );
   }
 
   const run = await createRun(repoUrl, appUrl);

@@ -21,10 +21,15 @@ export type ReviewDeps = {
   appTimeoutMs: number;
 };
 
+/** `--` keeps a repository link that starts with `-` from being read as an option. */
+export function gitCloneArgs(repoUrl: string, dest: string): string[] {
+  return ["clone", "--depth", "1", "--", repoUrl, dest];
+}
+
 async function gitClone(repoUrl: string, dest: string): Promise<void> {
   await rm(dest, { recursive: true, force: true });
   await mkdir(path.dirname(dest), { recursive: true });
-  await execFileAsync("git", ["clone", "--depth", "1", repoUrl, dest], {
+  await execFileAsync("git", gitCloneArgs(repoUrl, dest), {
     timeout: 120_000,
     env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
   });

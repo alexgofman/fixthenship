@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { REVIEW_RULES, addRepo, reviewApp, type ReviewDeps } from "../../lib/review/pipeline";
+import { REVIEW_RULES, addRepo, gitCloneArgs, reviewApp, type ReviewDeps } from "../../lib/review/pipeline";
 import { createRun, loadRun, saveRun } from "../../lib/store";
 import type { CheckResult, Finding, RuleId } from "../../lib/types";
 
@@ -167,5 +167,12 @@ describe("addRepo", () => {
     expect(byRule.R6.detail).toContain("Sign-up failed.");
     expect(byRule.R10).toEqual(scanFinding("R10"));
     expect(await loadRun(run.id)).toEqual(saved);
+  });
+});
+
+describe("gitCloneArgs", () => {
+  it("puts -- before the repository so a link cannot pass options to git", () => {
+    const args = gitCloneArgs("--upload-pack=touch /tmp/x", "/tmp/dest");
+    expect(args.slice(-3)).toEqual(["--", "--upload-pack=touch /tmp/x", "/tmp/dest"]);
   });
 });

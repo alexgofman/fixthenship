@@ -4,12 +4,37 @@ export type RepoRef = { owner: string; repo: string };
 
 export type PullRequest = { title: string; headRef: string; url: string };
 
-export function parseRepoUrl(repoUrl: string): RepoRef {
-  const match = repoUrl
-    .trim()
-    .match(/github\.com[/:]([^/\s]+)\/([^/\s#?]+?)(?:\.git)?\/?(?:[#?].*)?$/i);
-  if (!match) throw new Error(`Not a GitHub repository URL: ${repoUrl}`);
+const OWNER = "[A-Za-z0-9-]+";
+const REPO = "[A-Za-z0-9._-]+?";
+const REPO_PATH = new RegExp(`^/(${OWNER})/(${REPO})(?:\\.git)?(?:/tree(?:/[^?#]*)?)?/?$`);
+const REPO_URL = new RegExp(`^https://github\\.com(/[^?#\\s]*)$`, "i");
+
+function repoFromPath(pathname: string): RepoRef | null {
+  const match = pathname.match(REPO_PATH);
+  if (!match || match[2] === "." || match[2] === "..") return null;
   return { owner: match[1], repo: match[2] };
+}
+
+/** The `{ owner, repo }` of `https://github.com/<owner>/<repo>` (optional `.git`, trailing slash or `/tree/...`). */
+export function parseRepoUrl(repoUrl: string): RepoRef {
+  const path = repoUrl.trim().match(REPO_URL)?.[1];
+  const ref = path ? repoFromPath(path) : null;
+  if (!ref) throw new Error(`Not a GitHub repository URL: ${repoUrl}`);
+  return ref;
+}
+
+/** `https://github.com/<owner>/<repo>` for a GitHub repository link someone typed, otherwise null. */
+export function gitHubRepoUrl(value: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(value.trim());
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+  if (url.username || url.password || url.port || !/^(www\.)?github\.com$/i.test(url.hostname)) return null;
+  const ref = repoFromPath(url.pathname);
+  return ref ? `https://github.com/${ref.owner}/${ref.repo}` : null;
 }
 
 async function gh(pathname: string, init: RequestInit = {}): Promise<Response> {

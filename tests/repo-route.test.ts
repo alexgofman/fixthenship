@@ -31,10 +31,13 @@ describe("POST /api/runs/[runId]/repo", () => {
     "https://yourapp.lovable.app",
     "https://gitlab.com/you/app",
     "https://github.com/you",
-    "https://github.com/you/app/tree/main",
     "https://evil.example/github.com/you/app",
     "https://github.com.evil.example/you/app",
     "ftp://github.com/you/app",
+    "https://user:pass@github.com/you/app",
+    "https://github.com:8443/you/app",
+    "https://github.com/you/..",
+    "--upload-pack=touch /tmp/x",
   ])("rejects %j", async (repoUrl) => {
     const run = await createRun("", "https://app.test");
     run.stage = "reviewed";
