@@ -1,0 +1,39 @@
+{
+  "groups": [
+    {
+      "title": "Your App Store listing",
+      "items": [
+        {
+          "text": "Check that every screenshot shows the real app on that device size. iPad screenshots must come from an iPad, not a stretched iPhone screenshot.",
+          "why": "Screenshots that do not show the app in use on that device are a common rejection.",
+          "guideline": "2.3.3"
+        },
+        {
+          "text": "Put your privacy policy link in App Store Connect as well as inside the app.",
+          "why": "Apple requires both.",
+          "guideline": "5.1.1(i)"
+        }
+      ]
+    },
+    {
+      "title": "For the reviewer",
+      "items": [
+        {
+          "text": "Give a demo account and password in the review notes if the app needs sign-in.",
+          "why": "A reviewer who cannot get in rejects the app as incomplete.",
+          "guideline": "2.1"
+        }
+      ]
+    },
+    {
+      "title": "Legal basics (not legal advice)",
+      "items": [
+        {
+          "text": "Have a privacy policy that says what you collect and why, and a way for people to ask for their data to be deleted.",
+          "why": "Privacy laws such as GDPR require it wherever you have users in Europe or the UK.",
+          "guideline": ""
+        }
+      ]
+    }
+  ]
+}

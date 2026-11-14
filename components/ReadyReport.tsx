@@ -2,6 +2,7 @@
 
 import { useState, type CSSProperties } from "react";
 import type { Evidence as EvidenceItem, Finding, FixSession, RuleId, Run } from "@/lib/types";
+import BeforeYouSubmit from "./BeforeYouSubmit";
 import Evidence from "./Evidence";
 import StatePill from "./StatePill";
 import { displayFor, initialDisplay, repoName, runName } from "./findingDisplay";
@@ -269,6 +270,8 @@ export default function ReadyReport({ run }: { run: Run }) {
           </div>
         )}
       </section>
+
+      <BeforeYouSubmit runId={run.id} />
 
       <section className="board" aria-labelledby="ready-notes">
         <div className="section-head">
