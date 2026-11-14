@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import "./globals.css";
+import "./pricing/pricing.css";
 
 export const metadata: Metadata = {
   title: "FixThenShip",
@@ -47,6 +48,10 @@ export default function RootLayout({
                 Fix<span>Then</span>Ship
               </span>
             </Link>
+            <nav className="site-nav" aria-label="Main">
+              <Link href="/">Check an app</Link>
+              <Link href="/pricing">Pricing</Link>
+            </nav>
             <span className="site-tag">App Review rehearsal</span>
           </div>
         </header>
