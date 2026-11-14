@@ -29,7 +29,7 @@ export default function FindingCard({
   const headings = headingsFor(finding, display);
 
   return (
-    <article className={`finding finding-${display.tone}`}>
+    <article id={`finding-${finding.ruleId}`} className={`finding finding-${display.tone}`}>
       <header className="finding-head">
         <span className="guideline-badge">Guideline {finding.guideline}</span>
         <StatePill display={display} />

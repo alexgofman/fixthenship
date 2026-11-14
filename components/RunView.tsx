@@ -6,6 +6,7 @@ import type { Run } from "@/lib/types";
 import CheckProgress from "./CheckProgress";
 import DevinBoard from "./DevinBoard";
 import MainAction from "./MainAction";
+import RejectionDecoder from "./RejectionDecoder";
 import Timeline from "./Timeline";
 import VerdictLetter from "./VerdictLetter";
 import { hasOpenFindings, runName } from "./findingDisplay";
@@ -84,6 +85,8 @@ export default function RunView({ initialRun }: { initialRun: Run }) {
       <Timeline stage={run.stage} error={run.error} fixes={run.fixes} />
 
       <CheckProgress run={run} />
+
+      <RejectionDecoder run={run} />
 
       <VerdictLetter run={run} />
 
