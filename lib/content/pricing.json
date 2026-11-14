@@ -1,0 +1,66 @@
+{
+  "note": "Planned prices. Payments are not switched on yet: today the check is free for everyone.",
+  "tiers": [
+    {
+      "name": "Check",
+      "price": "Free",
+      "priceNote": "per app, as often as you like",
+      "forWhom": "Anyone who wants to know what Apple would likely flag.",
+      "includes": [
+        "Ten reviewer checks at iPhone size",
+        "The verdict in plain words, with screenshots",
+        "The before-you-submit checklist",
+        "Apple's rejection message explained"
+      ],
+      "cta": "Check my app",
+      "href": "/",
+      "featured": false
+    },
+    {
+      "name": "Fix pack",
+      "price": "$79",
+      "priceNote": "per app",
+      "forWhom": "You have the code on GitHub and want the problems fixed for you.",
+      "includes": [
+        "Everything in Check",
+        "One Devin session per problem, each a small pull request",
+        "Fixes merged on a separate branch, never on your main branch",
+        "The same checks repeated on the fixed app",
+        "Notes ready to paste into App Store Connect"
+      ],
+      "cta": "Start with a free check",
+      "href": "/",
+      "featured": true
+    },
+    {
+      "name": "Done for you",
+      "price": "$349",
+      "priceNote": "per app",
+      "forWhom": "You want a person to handle it from first check to resubmission.",
+      "includes": [
+        "Everything in Fix pack",
+        "A person reviews every fix before it is merged",
+        "Your App Store listing and screenshots checked against the guidelines",
+        "Help with the steps only you can do: Apple keys, in-app purchase, review notes",
+        "One more full check after Apple replies, if they reject it"
+      ],
+      "cta": "Talk to us",
+      "href": "mailto:hello@fixthenship.example",
+      "featured": false
+    },
+    {
+      "name": "For app builders",
+      "price": "Let's talk",
+      "priceNote": "licence",
+      "forWhom": "Lovable, Bolt, Replit, Base44 and other builders whose users get stuck at App Review.",
+      "includes": [
+        "A \"Ship to the App Store\" check inside your product",
+        "Your own rules and wording",
+        "Results through an API"
+      ],
+      "cta": "Talk to us",
+      "href": "mailto:hello@fixthenship.example",
+      "featured": false
+    }
+  ]
+}
