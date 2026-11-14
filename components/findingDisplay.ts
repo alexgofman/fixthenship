@@ -1,4 +1,4 @@
-import type { Finding, FindingState, Run } from "@/lib/types";
+import type { Finding, FindingState, RuleId, Run } from "@/lib/types";
 
 export type Tone = "red" | "amber" | "green" | "grey";
 
@@ -33,6 +33,63 @@ export function displayFor(f: Finding): Display {
     default:
       return initialDisplay(f.state);
   }
+}
+
+/** Rules that end amber even when the fix works: the developer always has one step left. */
+export const NEVER_GREEN_RULES: readonly RuleId[] = ["R7", "R8", "R10"];
+
+export type Headings = { problem: string; fix: string; notChecked: boolean };
+
+/**
+ * The headings above a card's plain words. A passed or not-checked card describes the rule, not this app;
+ * a risk card says "The risk", never "The problem".
+ */
+export function headingsFor(f: Finding, display: Display = displayFor(f)): Headings {
+  const notChecked = display.tone === "grey";
+  const passed = display.tone === "green" && f.state === "pass";
+  if (passed || notChecked) return { problem: "What reviewers reject", fix: "How it gets fixed", notChecked };
+  const risk = display.tone === "amber" && f.state === "risk";
+  return { problem: risk ? "The risk" : "The problem", fix: "What we do", notChecked };
+}
+
+export const NOT_CHECKED_LINE = "We could not check this, so we make no claim about your app.";
+
+/** Strips the test tool's raw output (error codes, assert names, node ids, step names) from text shown to people. */
+export function cleanReason(text: string): string {
+  return text
+    .replace(/\b(?:ASSERTION_FAILED|ERROR|TIMEOUT|INCONCLUSIVE):\s*/g, "")
+    .replace(/\b(?:agent|browser)\.\w+ failed:\s*/g, "")
+    .replace(/\bThe observation shows\s+(\w)/gi, (_, c: string) => c.toUpperCase())
+    .replace(/\s*\(e\.g\.,?\s*node n\d+[^)]*\)/g, "")
+    .replace(/\s*\bnode n\d+:?/g, "")
+    .replace(/\bPassed at [\w.]*\w[^.]*\.?/g, "Passed.")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
+/** A finding's detail as people see it; the stored detail keeps the raw text. */
+export function findingDetail(f: Pick<Finding, "detail">): string {
+  return cleanReason(f.detail);
+}
+
+/** An error or fix summary without API paths, status codes or JSON bodies. */
+export function plainError(text: string): string {
+  return cleanReason(text)
+    .replace(/:\s*(?:(?:Devin|GitHub)(?: API)?\s+)?(?:GET|POST|PUT|PATCH|DELETE)\s+\/[\s\S]*$/, ".")
+    .replace(/:?\s*\b[1-5]\d\d\s*[{[][\s\S]*$/, ".")
+    .replace(/\.{2,}$/, ".")
+    .trim();
+}
+
+/** What the Devin board shows as a session's summary. */
+export function fixSummary(summary: string): string {
+  if (/^Could not start a Devin session\b/.test(summary)) return "Devin could not start this fix.";
+  return plainError(summary);
+}
+
+/** True while any finding still fails or needs the developer after the re-check. */
+export function hasOpenFindings(run: Pick<Run, "findings">): boolean {
+  return run.findings.some((f) => f.finalState === "red" || f.finalState === "amber");
 }
 
 export function sortFindings(findings: Finding[]): Finding[] {
@@ -99,14 +156,16 @@ export function summaryLine(run: Run): string {
 }
 
 /**
- * The sentence at the top of the letter. Failing findings are the reasons; fixable "yes" counts as
- * "we can fix", "partly" as "one step from you".
+ * The sentence at the top of the letter. Failing findings are the reasons; NEVER_GREEN_RULES need "one step
+ * from you", every other "yes" or "partly" finding counts as "we can fix".
  */
-export function rejectionSentence(run: Run): string {
+export function rejectionSentence(run: Pick<Run, "findings">): string {
   const failing = run.findings.filter((f) => f.state === "fail");
   if (failing.length === 0) return "We found nothing that would likely get this app rejected.";
-  const canFix = failing.filter((f) => f.fixable === "yes").length;
-  const oneStep = failing.filter((f) => f.fixable === "partly").length;
+  const oneStep = failing.filter((f) => NEVER_GREEN_RULES.includes(f.ruleId)).length;
+  const canFix = failing.filter(
+    (f) => !NEVER_GREEN_RULES.includes(f.ruleId) && (f.fixable === "yes" || f.fixable === "partly"),
+  ).length;
   const parts = [
     `Apple would likely reject this app for ${plural(failing.length, "reason", "reasons")}.`,
     `We can fix ${canFix} of them for you now.`,

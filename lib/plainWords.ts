@@ -1,4 +1,4 @@
-import type { RuleId } from "./types";
+import type { FixSession, FixStatus, RuleId, Stage } from "./types";
 
 /** Everyday-language texts for each rule, for app owners who have never read Apple's guidelines. */
 export type PlainWords = {
@@ -92,3 +92,29 @@ export const CHECK_STEPS: { ruleId: RuleId; text: string }[] = [
   { ruleId: "R9", text: "Looking for a support or contact page" },
   { ruleId: "R10", text: "Looking for the app builder's badge or default branding" },
 ];
+
+/** The stage names people see; the stage itself stays the CSS class. */
+export const STAGE_WORDS: Record<Stage, string> = {
+  scanning: "Reading the code",
+  checking: "Checking the app",
+  reviewed: "Review ready",
+  fixing: "Fixing",
+  fixed: "Fixes ready to check",
+  rechecking: "Checking again",
+  done: "Finished",
+  failed: "Stopped",
+};
+
+/** "fixed" only means every Devin session stopped; it says so plainly when some did not finish. */
+export function stageWords(stage: Stage, fixes: Pick<FixSession, "status">[] = []): string {
+  if (stage === "fixed" && fixes.some((f) => f.status !== "finished")) return "Devin has stopped";
+  return STAGE_WORDS[stage];
+}
+
+export const FIX_STATUS_WORDS: Record<FixStatus, string> = {
+  queued: "Not started yet",
+  working: "Working",
+  waiting: "Waiting for an answer",
+  finished: "Finished",
+  error: "Stopped with a problem",
+};
