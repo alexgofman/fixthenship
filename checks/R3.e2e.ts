@@ -32,9 +32,10 @@ function tagControls(): Control[] {
   return controls;
 }
 
+/** The whole document, not just the body: a theme toggle often changes only a class or data-theme on <html>. */
 function readScreen(): Screen {
   let hash = 0;
-  const html = document.body.innerHTML;
+  const html = document.documentElement.outerHTML;
   for (let i = 0; i < html.length; i++) hash = (hash * 31 + html.charCodeAt(i)) | 0;
   return { url: location.href.split("#")[0], html: `${html.length}:${hash}`, scroll: Math.round(window.scrollY) };
 }
@@ -79,11 +80,14 @@ test("no dead buttons or broken links", async ({ app, browser }) => {
   for (const screen of screens) {
     if (tried.size >= MAX_CONTROLS) break;
     await app.open(screen);
+    // A link to the screen it is on (the logo or "Home" on "/") has nothing to change, so it says nothing.
+    const here = [new URL(screen, home).href, await browser.url()].map((href) => href.split("#")[0]);
     for (const listed of await browser.evaluate(tagControls)) {
       if (tried.size >= MAX_CONTROLS) break;
       if (tried.has(key(listed)) || RISKY.test(listed.label + listed.href)) continue;
       if (listed.href && !/^https?:/.test(listed.href)) continue;
       if (listed.href && new URL(listed.href).origin !== home.origin) continue;
+      if (listed.href && here.includes(listed.href.split("#")[0])) continue;
       tried.add(key(listed));
 
       await app.open(screen);
