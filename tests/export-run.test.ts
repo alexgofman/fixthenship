@@ -197,6 +197,25 @@ describe("export-run", () => {
     expect(html).toContain("What is left to do");
   });
 
+  it("hides the Devin units column and total when every session reports 0", async () => {
+    const example = await loadExampleRun();
+    const zero = renderRunHtml({ ...example, fixes: example.fixes.map((f) => ({ ...f, acus: 0 })) }, "");
+    expect(zero).not.toContain("Devin units");
+    expect(zero).toContain(`>${example.fixes.length} sessions</span>`);
+    const one = renderRunHtml({ ...example, fixes: [{ ...example.fixes[0], acus: 0 }] }, "");
+    expect(one).not.toContain("Devin units");
+    expect(one).toContain(">1 session</span>");
+  });
+
+  it("keeps the Devin units column and total when a session reports units", async () => {
+    const example = await loadExampleRun();
+    const html = renderRunHtml(example, "");
+    const total = example.fixes.reduce((sum, f) => sum + f.acus, 0);
+    expect(html).toContain(`>${example.fixes.length} sessions · ${total} Devin units</span>`);
+    expect(html).toContain('<th class="num">Devin units</th>');
+    expect(html.match(/data-label="Devin units"/g)).toHaveLength(example.fixes.length);
+  });
+
   it("uses the app's host when the run has no repository", async () => {
     const example = { ...(await loadExampleRun()), repoUrl: "" };
     const html = renderRunHtml(example, "");

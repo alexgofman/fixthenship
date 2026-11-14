@@ -310,6 +310,7 @@ function formatUnits(n) {
 function devinBoard(fixes) {
   if (fixes.length === 0) return "";
   const total = fixes.reduce((sum, f) => sum + (f.acus || 0), 0);
+  const showUnits = fixes.some((f) => (f.acus || 0) > 0);
   const title = (id) => RULES.find((r) => r.id === id)?.title ?? "";
   const rows = fixes
     .map(
@@ -318,13 +319,12 @@ function devinBoard(fixes) {
 <td data-label="Status"><div class="cell"><span class="status status-${esc(fix.status)}">${esc(FIX_STATUS_WORDS[fix.status] ?? fix.status)}</span></div></td>
 <td data-label="Pull request"><div class="cell">${fix.prUrl ? link(fix.prUrl, "pull request") : `<span class="muted">—</span>`}</div></td>
 <td data-label="Summary"><div class="cell">${fix.summary ? esc(fixSummary(fix.summary)) : `<span class="muted">—</span>`}</div></td>
-<td data-label="Devin units" class="num"><div class="cell">${esc(formatUnits(fix.acus || 0))}</div></td>
-</tr>`,
+${showUnits ? `<td data-label="Devin units" class="num"><div class="cell">${esc(formatUnits(fix.acus || 0))}</div></td>\n` : ""}</tr>`,
     )
     .join("\n");
   return `<section class="board" aria-labelledby="board-title">
-<div class="section-head"><h2 id="board-title">Devin board</h2><span class="muted small">${fixes.length} ${fixes.length === 1 ? "session" : "sessions"} · ${esc(formatUnits(total))} Devin units</span></div>
-<table class="board-table"><thead><tr><th>Rule</th><th>Status</th><th>Pull request</th><th>Summary</th><th class="num">Devin units</th></tr></thead>
+<div class="section-head"><h2 id="board-title">Devin board</h2><span class="muted small">${fixes.length} ${fixes.length === 1 ? "session" : "sessions"}${showUnits ? ` · ${esc(formatUnits(total))} Devin units` : ""}</span></div>
+<table class="board-table"><thead><tr><th>Rule</th><th>Status</th><th>Pull request</th><th>Summary</th>${showUnits ? `<th class="num">Devin units</th>` : ""}</tr></thead>
 <tbody>${rows}</tbody></table>
 </section>`;
 }

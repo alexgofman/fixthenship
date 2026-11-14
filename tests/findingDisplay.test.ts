@@ -193,7 +193,33 @@ describe("DevinBoard", () => {
     );
     expect(html).toContain("Devin could not start this fix.");
     expect(html).toContain("Stopped with a problem");
-    expect(html).toContain("Devin units");
     expect(html).not.toContain("/v1/sessions");
+  });
+
+  const fix = (ruleId: "R5" | "R7", acus: number) => ({
+    ruleId,
+    sessionId: `s-${ruleId}`,
+    url: "",
+    status: "finished" as const,
+    prUrl: "",
+    summary: "",
+    acus,
+  });
+  const text = (html: string) => html.replace(/<!-- -->/g, "");
+
+  it("hides the units column and total when every session reports 0", () => {
+    const many = text(renderToStaticMarkup(createElement(DevinBoard, { fixes: [fix("R5", 0), fix("R7", 0)] })));
+    expect(many).not.toContain("Devin units");
+    expect(many).toContain(">2 sessions</span>");
+    const one = text(renderToStaticMarkup(createElement(DevinBoard, { fixes: [fix("R5", 0)] })));
+    expect(one).not.toContain("Devin units");
+    expect(one).toContain(">1 session</span>");
+  });
+
+  it("keeps the units column and total when a session reports units", () => {
+    const html = text(renderToStaticMarkup(createElement(DevinBoard, { fixes: [fix("R5", 0), fix("R7", 1.5)] })));
+    expect(html).toContain(">2 sessions · 1.5 Devin units</span>");
+    expect(html).toContain('<th class="num">Devin units</th>');
+    expect(html.match(/data-label="Devin units"/g)).toHaveLength(2);
   });
 });

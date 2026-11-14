@@ -18,13 +18,15 @@ function formatUnits(n: number): string {
 export default function DevinBoard({ fixes }: { fixes: FixSession[] }) {
   if (fixes.length === 0) return null;
   const total = fixes.reduce((sum, f) => sum + (f.acus || 0), 0);
+  const showUnits = fixes.some((f) => (f.acus || 0) > 0);
 
   return (
     <section className="board" aria-labelledby="board-title">
       <div className="section-head">
         <h2 id="board-title">Devin board</h2>
         <span className="muted small">
-          {fixes.length} {fixes.length === 1 ? "session" : "sessions"} · {formatUnits(total)} Devin units
+          {fixes.length} {fixes.length === 1 ? "session" : "sessions"}
+          {showUnits && <> · {formatUnits(total)} Devin units</>}
         </span>
       </div>
       <table className="board-table">
@@ -34,7 +36,7 @@ export default function DevinBoard({ fixes }: { fixes: FixSession[] }) {
             <th>Status</th>
             <th>Pull request</th>
             <th>Summary</th>
-            <th className="num">Devin units</th>
+            {showUnits && <th className="num">Devin units</th>}
           </tr>
         </thead>
         <tbody>
@@ -74,11 +76,13 @@ export default function DevinBoard({ fixes }: { fixes: FixSession[] }) {
               <td data-label="Summary">
                 <div className="cell">{fix.summary ? fixSummary(fix.summary) : <span className="muted">—</span>}</div>
               </td>
-              <td data-label="Devin units" className="num">
-                <div className="cell">
-                {formatUnits(fix.acus || 0)}
-              </div>
-              </td>
+              {showUnits && (
+                <td data-label="Devin units" className="num">
+                  <div className="cell">
+                  {formatUnits(fix.acus || 0)}
+                </div>
+                </td>
+              )}
             </tr>
           ))}
         </tbody>
