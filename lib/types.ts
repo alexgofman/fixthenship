@@ -107,4 +107,6 @@ export type Run = {
   error: string;
   /** What each app check of the current review answered, for the live progress list. */
   checked?: Partial<Record<RuleId, CheckOutcome>>;
+  /** Apple's rejection message as the user pasted it; shown back only as plain text. */
+  rejectionText?: string;
 };

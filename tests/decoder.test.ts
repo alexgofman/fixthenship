@@ -106,6 +106,8 @@ describe("cleanRejectionText", () => {
   it("trims and cuts at the limit", () => {
     expect(cleanRejectionText("  Guideline 2.1  ")).toBe("Guideline 2.1");
     expect(cleanRejectionText(" " + "a".repeat(REJECTION_TEXT_MAX + 50))).toHaveLength(REJECTION_TEXT_MAX);
+    expect(cleanRejectionText("Guideline 2.1\r\n\r\nWe were unable")).toBe("Guideline 2.1\n\nWe were unable");
     expect(cleanRejectionText(undefined)).toBe("");
+    expect(cleanRejectionText(new File(["Guideline 2.1"], "message.txt"))).toBe("");
   });
 });

@@ -1,5 +1,6 @@
 import { connection } from "next/server";
 // Relative imports so the tests can load this route without the "@/" alias.
+import { cleanRejectionText } from "../../../lib/decoder";
 import { gitHubRepoUrl } from "../../../lib/fix/github";
 import { reviewApp } from "../../../lib/review/pipeline";
 import { createRun, listRuns } from "../../../lib/store";
@@ -9,16 +10,24 @@ export async function GET() {
   return Response.json(await listRuns());
 }
 
-async function readFields(request: Request): Promise<{ repoUrl: string; appUrl: string; isJson: boolean }> {
+type Fields = { repoUrl: string; appUrl: string; rejectionText: string; isJson: boolean };
+
+async function readFields(request: Request): Promise<Fields> {
   const isJson = (request.headers.get("content-type") ?? "").includes("application/json");
   if (isJson) {
     const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
-    return { repoUrl: String(body.repoUrl ?? "").trim(), appUrl: String(body.appUrl ?? "").trim(), isJson };
+    return {
+      repoUrl: String(body.repoUrl ?? "").trim(),
+      appUrl: String(body.appUrl ?? "").trim(),
+      rejectionText: cleanRejectionText(body.rejectionText),
+      isJson,
+    };
   }
   const form = await request.formData();
   return {
     repoUrl: String(form.get("repoUrl") ?? "").trim(),
     appUrl: String(form.get("appUrl") ?? "").trim(),
+    rejectionText: cleanRejectionText(form.get("rejectionText")),
     isJson,
   };
 }
@@ -37,7 +46,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const run = await createRun(repoUrl, appUrl);
+  const run = await createRun(repoUrl, appUrl, fields.rejectionText);
   // Not awaited: the review takes minutes and records its progress in run.json.
   void reviewApp(run.id);
 

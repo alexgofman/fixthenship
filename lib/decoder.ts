@@ -55,7 +55,11 @@ export function decode(number: string): Decoded | undefined {
   return undefined;
 }
 
-/** Apple's message as stored: trimmed and cut at REJECTION_TEXT_MAX characters. */
+/**
+ * Apple's message as stored: line ends as the textarea counts them (a submitted form sends CRLF), trimmed and
+ * cut at REJECTION_TEXT_MAX characters. Anything but text is dropped.
+ */
 export function cleanRejectionText(text: unknown): string {
-  return String(text ?? "").trim().slice(0, REJECTION_TEXT_MAX);
+  if (typeof text !== "string") return "";
+  return text.replace(/\r\n?/g, "\n").trim().slice(0, REJECTION_TEXT_MAX);
 }

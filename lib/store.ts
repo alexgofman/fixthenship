@@ -83,8 +83,8 @@ export function updateRun(runId: string, change: (run: Run) => void | Promise<vo
   });
 }
 
-/** `repoUrl` may be empty: the review then uses the running app only. */
-export async function createRun(repoUrl: string, appUrl: string): Promise<Run> {
+/** `repoUrl` may be empty: the review then uses the running app only. `rejectionText` is kept only when given. */
+export async function createRun(repoUrl: string, appUrl: string, rejectionText = ""): Promise<Run> {
   const run: Run = {
     id: randomUUID(),
     createdAt: new Date().toISOString(),
@@ -95,6 +95,7 @@ export async function createRun(repoUrl: string, appUrl: string): Promise<Run> {
     fixes: [],
     error: "",
   };
+  if (rejectionText) run.rejectionText = rejectionText;
   await saveRun(run);
   return run;
 }
