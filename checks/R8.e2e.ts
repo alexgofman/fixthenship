@@ -1,7 +1,7 @@
 import { test } from "@e2e-dev/web";
 import { expect, isAgentError } from "e2e";
 import { z } from "zod";
-import { markNotChecked, signUp, STEP_LIMIT_MS } from "./support";
+import { hasAccounts, markNotChecked, signUp, STEP_LIMIT_MS } from "./support";
 
 /** The step was stopped before it reached a verdict; the runner reports these as not checked. */
 const BLOCKED = /^(?:MODEL_[A-Z_]+|STEP_TIMEOUT|STEP_BUDGET_EXHAUSTED|AUTOMATION_UNSUPPORTED)$/;
@@ -27,10 +27,13 @@ const IOS_WRAPPER = `
 test("digital goods are not sold through outside checkout", async ({ app, agent, browser }) => {
   await browser.addInitScript(IOS_WRAPPER);
   await app.open("/");
-  const notPossible = await signUp(agent);
-  if (notPossible) {
-    markNotChecked(notPossible);
-    test.skip(notPossible);
+  // An app with no accounts sells to everyone from its public screens: look for the paid plan as a visitor.
+  if (await hasAccounts(agent)) {
+    const notPossible = await signUp(agent);
+    if (notPossible) {
+      markNotChecked(notPossible);
+      test.skip(notPossible);
+    }
   }
 
   try {

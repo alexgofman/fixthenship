@@ -1,6 +1,6 @@
 import { test } from "@e2e-dev/web";
 import { isAgentError } from "e2e";
-import { markNotChecked, signUp } from "./support";
+import { hasAccounts, markNotChecked, signUp } from "./support";
 
 const MAX_LINKED_SCREENS = 4;
 /** The step was stopped before it reached a verdict; the runner reports these as not checked. */
@@ -63,6 +63,11 @@ test("a support or contact page exists", async ({ app, agent, browser }) => {
   }
 
   if (!(await opened("/"))) await app.open("/");
+  if (!(await hasAccounts(agent))) {
+    throw new Error(
+      "No support, help or contact page and no support email address was found on the first screen or the screens it links to. The app has no account or settings screen where one could be.",
+    );
+  }
   const notPossible = await signUp(agent);
   if (notPossible) {
     // Support is often only in the settings, so not getting there is "not checked", never a finding.

@@ -24,6 +24,26 @@ function explain(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/** What the account-based checks get back when the app has no accounts to sign up for. */
+export const NO_ACCOUNTS = "The app has no accounts.";
+
+/**
+ * Whether the app has user accounts, judged from the screen it is on (call it on the first screen).
+ * Many small apps have none, and then there is nothing to sign up for, delete or find in a settings screen.
+ */
+export async function hasAccounts(agent: Agent): Promise<boolean> {
+  try {
+    const seen = await agent.extract(
+      "whether this app has user accounts, judged from this screen and its menus: 'yes' when it shows any way to sign in, log in, sign up, register, get started with an account, or open a profile or account; 'no' only when the app is clearly used without any account and no such option is shown anywhere on this screen. When in doubt, answer 'yes'.",
+      { schema: z.object({ accounts: z.enum(["yes", "no"]), note: z.string() }) },
+    );
+    return seen.accounts === "yes";
+  } catch (error) {
+    if (isAgentError(error) && error.code.startsWith("MODEL_")) throw error;
+    return true;
+  }
+}
+
 /**
  * Signs up with the test email and password from the first screen.
  * Returns null when the new account is signed in, otherwise why sign-up was impossible.

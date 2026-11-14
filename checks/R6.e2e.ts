@@ -1,8 +1,12 @@
 import { test } from "e2e";
-import { markNotChecked, signUp, STEP_LIMIT_MS } from "./support";
+import { hasAccounts, markNotChecked, signUp, STEP_LIMIT_MS } from "./support";
 
 test("an account can be deleted", async ({ app, agent }) => {
   await app.open("/");
+  if (!(await hasAccounts(agent))) {
+    console.log("The app has no accounts, so there is no account to delete.");
+    return;
+  }
   const notPossible = await signUp(agent);
   if (notPossible) {
     markNotChecked(notPossible);
