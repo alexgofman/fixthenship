@@ -2,6 +2,8 @@
 
 FixThenShip reviews an AI-built web app the way Apple's App Store reviewer would, starts Devin sessions to fix what it finds, and re-checks.
 
+Website and a saved copy of a real review: https://fixthenship.netlify.app
+
 Built in one day at Eurasian Hack London, 14 November 2026.
 
 ## Why
@@ -10,9 +12,17 @@ Apple reviewed 9,100,620 app submissions in 2025 and rejected 2,093,244 of them.
 
 AI app builders made building an app easy. App Review is where people get stuck, and most of them have never read the guidelines.
 
+## Who it is for
+
+- **A first submission:** "I built an app and want it in the App Store."
+- **An update to an app already in the store:** Apple reviews every update again.
+- **An app Apple has already rejected:** paste Apple's message, and each guideline in it is explained in plain words and linked to our own finding.
+
+All three start from the app's web link, the one the app builder gives on Publish. It is not an App Store link.
+
 ## How it works
 
-1. **Paste your app's link.** Nothing else is needed to start.
+1. **Paste your app's web link.** Nothing else is needed to start. If Apple already rejected the app, paste Apple's message in the optional box too.
 2. **We use the app the way a reviewer would.** We open it at iPhone size and run ten checks:
    - Opening your app on an iPhone-size screen
    - Looking for leftover placeholder text
@@ -24,9 +34,10 @@ AI app builders made building an app easy. App Review is where people get stuck,
    - Checking that a reviewer can get past the sign-in
    - Looking for a support or contact page
    - Looking for the app builder's badge or default branding
-3. **You get the verdict.** About two to three minutes later you see, in plain words, what would likely get the app rejected, with a screenshot of each problem.
-4. **"Fix these for me".** This connects your GitHub repository and starts one Devin session per fixable finding. Each session opens one small pull request against a `store-ready-<run>` branch, one per review.
-5. **We check again.** We merge those pull requests, run the fixed app and repeat the checks. Every finding ends as fixed and verified, needs you, or still failing.
+3. **You get the verdict.** About two to three minutes later you see, in plain words, what would likely get the app rejected, with a screenshot of each problem. If you pasted Apple's message, "What Apple's message means" explains each guideline it names and links it to our finding.
+4. **"Fix these for me".** This connects your GitHub repository and starts one Devin session per fixable finding. Each session opens one small pull request against a `store-ready-<run>` branch, one per review, so each run fixes on its own branch. When a pull request collides with fixes merged before it, it is sent back to the Devin session that wrote it to bring it up to date.
+5. **We check again.** We merge those pull requests, run the fixed app and repeat the checks. The re-check reuses installed packages when the dependency list is the same. Every finding ends as fixed and verified, needs you, or still failing.
+6. **Before you submit.** The ready page lists twenty things only the developer can see, such as the screenshots, the App Store Connect listing and the demo account.
 
 ## Why you can trust the result
 
