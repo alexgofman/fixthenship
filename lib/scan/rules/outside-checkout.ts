@@ -1,15 +1,16 @@
 import { codeEvidence, makeFinding, quote, type RuleCheck } from "../finding";
-import { findAll, uniqueLines } from "../match";
+import { findAll, findInText, uniqueLines } from "../match";
 
-const CHECKOUT = /buy\.stripe\.com|\bstripe\b|\bcheckout\b|paddle\.com|@paddle\/|lemonsqueezy|gumroad\.com/gi;
+const CHECKOUT = /buy\.stripe\.com|checkout\.stripe\.com|\bredirectToCheckout\b|paddle\.com|lemonsqueezy|gumroad\.com/gi;
 const DIGITAL_GOODS = /\bsubscriptions?\b|\bsubscribe\b|\bplans\b|\bpremium\b|\bcredits\b|\bpricing\b/gi;
 const PRO_TIER = /\bPro\b/g;
 
 export const outsideCheckout: RuleCheck = (files) => {
-  const checkouts = findAll(files, CHECKOUT);
+  const appFiles = files.filter((f) => !/\.(test|spec)\.[jt]sx?$/.test(f.path) && !f.path.endsWith("package.json"));
+  const checkouts = findAll(appFiles, CHECKOUT);
   if (checkouts.length === 0) return null;
-  const appFiles = files.filter((f) => !f.path.endsWith("package.json"));
-  const goods = uniqueLines([...findAll(appFiles, DIGITAL_GOODS), ...findAll(appFiles, PRO_TIER)]);
+  // Only words on screen tell what is sold; `data.subscription` from an auth listener is not a subscription.
+  const goods = uniqueLines([...findInText(appFiles, DIGITAL_GOODS), ...findInText(appFiles, PRO_TIER)]);
   if (goods.length === 0) return null;
   return makeFinding(
     "R8",

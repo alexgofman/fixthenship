@@ -122,6 +122,29 @@ describe("scanRepo folders", () => {
     expect((await scanRepo(dir)).map((f) => f.ruleId)).toEqual(["R6"]);
   });
 
+  it("R8 counts only on-screen goods and real checkout links", async () => {
+    await cp(path.join(FIXTURES, "r8", "good"), dir, { recursive: true });
+    await writeFile(
+      path.join(dir, "src", "auth.js"),
+      [
+        'const { data } = supabase.auth.onAuthStateChange(() => {});',
+        "export const stop = () => data.subscription.unsubscribe();",
+        "export const subscribe = (fn) => fn();",
+        "",
+      ].join("\n"),
+    );
+    await writeFile(
+      path.join(dir, "src", "Shop.jsx"),
+      'export default function Shop() {\n  const checkout = () => {};\n  return <a href="https://buy.stripe.com/notebook">Buy a printed notebook</a>;\n}\n',
+    );
+    expect(await scanRepo(dir)).toEqual([]);
+
+    await writeFile(path.join(dir, "src", "Plans.jsx"), "export const Plans = () => <h2>Premium plans</h2>;\n");
+    const [finding] = await scanRepo(dir);
+    expect(finding.ruleId).toBe("R8");
+    expect(finding.evidence.map((e) => ("file" in e ? `${e.file}:${e.line}` : ""))).toEqual(["src/Shop.jsx:3", "src/Plans.jsx:1"]);
+  });
+
   it("does not count a builder's packages and client code, which nobody sees, as branding", async () => {
     await cp(path.join(FIXTURES, "r10", "good"), dir, { recursive: true });
     await writeFile(
