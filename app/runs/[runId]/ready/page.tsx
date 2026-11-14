@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { isValidRunId, loadRun } from "@/lib/store";
 import ReadyReport from "@/components/ReadyReport";
-import { repoName } from "@/components/findingDisplay";
+import { runName } from "@/components/findingDisplay";
 
 async function ReadyLoader({ runId }: { runId: string }) {
   if (!isValidRunId(runId)) notFound();
@@ -15,7 +15,7 @@ async function ReadyLoader({ runId }: { runId: string }) {
       <div className="run-head">
         <div>
           <p className="eyebrow">Ready to submit · Run {run.id}</p>
-          <h1 className="run-title">{repoName(run.repoUrl)}</h1>
+          <h1 className="run-title">{runName(run)}</h1>
         </div>
       </div>
       {run.stage === "done" ? (

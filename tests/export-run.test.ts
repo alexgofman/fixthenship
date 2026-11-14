@@ -59,4 +59,11 @@ describe("export-run", () => {
     expect(notes).toContain(`${NOTE_LINES.R5[0]}: ${NOTE_LINES.R5[1]}`);
     expect(notes).not.toContain(NOTE_LINES.R6[0]);
   });
+
+  it("names a run without a repository after the app's host", async () => {
+    const example = { ...(await loadExampleRun()), repoUrl: "" };
+    const notes = reviewNotes(example);
+    expect(notes.split("\n")[0]).toBe("habit-tracker.example.com is the iPhone version of https://habit-tracker.example.com.");
+    expect(exportedNotes(example)).toBe(notes);
+  });
 });

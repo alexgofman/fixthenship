@@ -4,7 +4,7 @@ import { useState, type CSSProperties } from "react";
 import type { Evidence as EvidenceItem, Finding, FixSession, RuleId, Run } from "@/lib/types";
 import Evidence from "./Evidence";
 import StatePill from "./StatePill";
-import { displayFor, initialDisplay, repoName } from "./findingDisplay";
+import { displayFor, initialDisplay, repoName, runName } from "./findingDisplay";
 
 /** Per rule: the label and the place a reviewer can see the fix, for the App Review notes. */
 export const NOTE_LINES: Record<RuleId, [string, string]> = {
@@ -59,9 +59,11 @@ export function titleCase(name: string): string {
 
 /** Ready-to-paste text for the App Review notes in App Store Connect. */
 export function reviewNotes(run: Run): string {
-  const repo = repoName(run.repoUrl);
+  const repo = run.repoUrl ? repoName(run.repoUrl) : "";
   const lines = [
-    `${titleCase(repo)} (built from the ${repo} repository) is the iPhone version of ${run.appUrl}.`,
+    repo
+      ? `${titleCase(repo)} (built from the ${repo} repository) is the iPhone version of ${run.appUrl}.`
+      : `${runName(run)} is the iPhone version of ${run.appUrl}.`,
     "",
     "Demo account: <email> / <password>",
   ];

@@ -15,7 +15,7 @@ process.emitWarning = (warning, ...rest) => {
   if (code === "MODULE_TYPELESS_PACKAGE_JSON") return;
   return emitWarning.call(process, warning, ...rest);
 };
-const { displayFor, formatDate, initialDisplay, isRechecked, repoName, sortFindings, summaryLine } = await import(
+const { displayFor, formatDate, initialDisplay, isRechecked, repoName, runName, sortFindings, summaryLine } = await import(
   "../components/findingDisplay.ts"
 );
 const { RULES } = await import("../lib/rules.ts");
@@ -76,9 +76,11 @@ function titleCase(name) {
 
 /** Same text as reviewNotes in components/ReadyReport.tsx. */
 export function reviewNotes(run) {
-  const repo = repoName(run.repoUrl);
+  const repo = run.repoUrl ? repoName(run.repoUrl) : "";
   const lines = [
-    `${titleCase(repo)} (built from the ${repo} repository) is the iPhone version of ${run.appUrl}.`,
+    repo
+      ? `${titleCase(repo)} (built from the ${repo} repository) is the iPhone version of ${run.appUrl}.`
+      : `${runName(run)} is the iPhone version of ${run.appUrl}.`,
     "",
     "Demo account: <email> / <password>",
   ];
@@ -171,10 +173,10 @@ function verdictLetter(run, copied) {
   const findings = sortFindings(run.findings);
   return `<article class="letter" aria-labelledby="letter-title">
 <div class="letterhead"><span class="letterhead-mark">FixThenShip</span><span class="letterhead-sub">Review rehearsal</span></div>
-<header class="letter-head"><h2 id="letter-title">Review of ${esc(repoName(run.repoUrl))}</h2>
+<header class="letter-head"><h2 id="letter-title">Review of ${esc(runName(run))}</h2>
 <dl class="letter-meta">
 <div><dt>Date</dt><dd><time datetime="${esc(run.createdAt)}">${esc(formatDate(run.createdAt))}</time></dd></div>
-<div><dt>Repository</dt><dd>${link(run.repoUrl, esc(run.repoUrl))}</dd></div>
+${run.repoUrl ? `<div><dt>Repository</dt><dd>${link(run.repoUrl, esc(run.repoUrl))}</dd></div>` : ""}
 <div><dt>App</dt><dd>${link(run.appUrl, esc(run.appUrl))}</dd></div>
 </dl></header>
 <p class="letter-summary">${esc(summaryLine(run))}</p>
@@ -279,7 +281,7 @@ ${fixed}\n${needs}\n${failing}\n${unchecked}\n${notes}
 
 /** The whole page as one HTML string; `copied` holds the evidence paths that exist next to it. */
 export function renderRunHtml(run, css, copied = new Set()) {
-  const name = repoName(run.repoUrl);
+  const name = runName(run);
   return `<!doctype html>
 <html lang="en">
 <head>
