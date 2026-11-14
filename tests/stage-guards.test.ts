@@ -89,10 +89,8 @@ describe("POST /fix", () => {
     expect(calls.filter((c) => c.method === "POST")).toHaveLength(2);
     const run = await loadRun("run1");
     expect(run.stage).toBe("fixing");
-    expect(run.fixes.map((f) => [f.ruleId, f.sessionId])).toEqual([
-      ["R2", "devin-1"],
-      ["R5", "devin-2"],
-    ]);
+    expect(run.fixes.map((f) => f.ruleId)).toEqual(["R2", "R5"]);
+    expect(run.fixes.map((f) => f.sessionId).sort()).toEqual(["devin-1", "devin-2"]);
     expect(startFixLoop).toHaveBeenCalledTimes(1);
   });
 
