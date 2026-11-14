@@ -1,0 +1,106 @@
+/* FixThenShip mascot. Pair with Mascot.tsx. Every class is prefixed fts-mascot-.
+   Colours follow the product's variables when they exist, else the brand defaults. */
+.fts-mascot{
+  --fts-mascot-accent:var(--accent-bright,#F2500F);
+  --fts-mascot-limb:var(--accent-dark,#A8380A);
+  --fts-mascot-ink:var(--ink,#111);
+  --fts-mascot-paper:#fff;
+  display:inline-block;flex:none;vertical-align:middle
+}
+
+/* Paint */
+.fts-mascot-a{fill:var(--fts-mascot-accent)}
+.fts-mascot-m{fill:var(--fts-mascot-limb)}
+.fts-mascot-k{fill:var(--fts-mascot-ink)}
+.fts-mascot-w{fill:var(--fts-mascot-paper)}
+.fts-mascot-l,.fts-mascot-lm,.fts-mascot-lw,.fts-mascot-la{fill:none;stroke-linecap:round;stroke-linejoin:round}
+.fts-mascot-l{stroke:var(--fts-mascot-ink);stroke-width:5}
+.fts-mascot-lm{stroke:var(--fts-mascot-limb);stroke-width:4.6}
+.fts-mascot-lw{stroke:var(--fts-mascot-paper);stroke-width:3.6}
+.fts-mascot-la{stroke:var(--fts-mascot-accent);stroke-width:3.2}
+.fts-mascot-thin{stroke-width:3}
+.fts-mascot-glint{stroke-width:2;opacity:.3}
+.fts-mascot-jaw{stroke-width:5.6;stroke-linecap:butt}
+.fts-mascot-shadow{fill:var(--fts-mascot-ink);opacity:.1}
+.fts-mascot-lens{fill:var(--fts-mascot-paper);fill-opacity:.8;stroke:var(--fts-mascot-ink);stroke-width:4}
+.fts-mascot-solid{fill-opacity:1}
+.fts-mascot-note{fill:var(--fts-mascot-paper);stroke:var(--fts-mascot-ink);stroke-width:3;stroke-linejoin:round}
+
+/* Which parts each state shows */
+.fts-mascot-s{display:none}
+.fts-mascot-checking .fts-mascot-s-checking,
+.fts-mascot-fixing .fts-mascot-s-fixing,
+.fts-mascot-rechecking .fts-mascot-s-rechecking,
+.fts-mascot-done .fts-mascot-s-done,
+.fts-mascot-needsYou .fts-mascot-s-needsYou,
+.fts-mascot-stopped .fts-mascot-s-stopped{display:inline}
+.fts-mascot-done .fts-mascot-eyes,
+.fts-mascot-fixing .fts-mascot-smile,
+.fts-mascot-stopped .fts-mascot-smile{display:none}
+
+/* Pivots, in viewBox units */
+.fts-mascot-body{transform-origin:40px 81px}
+.fts-mascot-arm{transform-origin:64px 60px}
+.fts-mascot-eyes{transform-origin:40px 53px}
+.fts-mascot-pop{transform-box:fill-box;transform-origin:center}
+
+/* Still poses (also what prefers-reduced-motion shows) */
+.fts-mascot-checking .fts-mascot-pupils{transform:translate(2.8px,-1.4px)}
+.fts-mascot-fixing .fts-mascot-pupils{transform:translate(2.8px,-1.2px)}
+.fts-mascot-fixing .fts-mascot-arm{transform:rotate(-10deg)}
+.fts-mascot-needsYou .fts-mascot-pupils{transform:translate(2.4px,-2px)}
+.fts-mascot-stopped .fts-mascot-pupils{transform:translate(-2px,-2.4px)}
+.fts-mascot-stopped .fts-mascot-body{transform:rotate(-7deg)}
+
+/* checking: 3.2s */
+.fts-mascot-checking .fts-mascot-arm{animation:fts-mascot-sweep 3.2s ease-in-out infinite}
+.fts-mascot-checking .fts-mascot-pupils{animation:fts-mascot-follow 3.2s ease-in-out infinite}
+.fts-mascot-checking .fts-mascot-body{animation:fts-mascot-lean 3.2s ease-in-out infinite}
+.fts-mascot-checking .fts-mascot-eyes{animation:fts-mascot-blink 3.2s infinite}
+/* fixing: 2.4s (two turns, then a breath) */
+.fts-mascot-fixing .fts-mascot-arm{animation:fts-mascot-crank 2.4s cubic-bezier(.4,0,.3,1) infinite}
+.fts-mascot-fixing .fts-mascot-body{animation:fts-mascot-effort 2.4s ease-out infinite}
+.fts-mascot-fixing .fts-mascot-spark{animation:fts-mascot-spark 2.4s ease-out infinite}
+.fts-mascot-fixing .fts-mascot-eyes{animation:fts-mascot-squint 2.4s ease-out infinite}
+/* rechecking: 3.6s */
+.fts-mascot-rechecking .fts-mascot-body{animation:fts-mascot-sway 1.8s ease-in-out infinite alternate}
+.fts-mascot-rechecking .fts-mascot-pupils,
+.fts-mascot-rechecking .fts-mascot-bigp{animation:fts-mascot-scan 3.6s ease-in-out infinite}
+.fts-mascot-rechecking .fts-mascot-tick{animation:fts-mascot-tick 3.6s ease-out infinite}
+/* done: 3s */
+.fts-mascot-done .fts-mascot-body{animation:fts-mascot-bob 1.5s ease-in-out infinite alternate}
+.fts-mascot-done .fts-mascot-arm{animation:fts-mascot-wave 1.5s ease-in-out infinite alternate}
+/* needsYou: 3s */
+.fts-mascot-needsYou .fts-mascot-arm{animation:fts-mascot-wave 1.5s ease-in-out infinite alternate}
+.fts-mascot-needsYou .fts-mascot-pupils{animation:fts-mascot-glance 3s ease-in-out infinite}
+.fts-mascot-needsYou .fts-mascot-dot{animation:fts-mascot-pulse .75s ease-in-out infinite alternate}
+.fts-mascot-needsYou .fts-mascot-eyes{animation:fts-mascot-blink 3s infinite}
+/* stopped: 3s */
+.fts-mascot-stopped .fts-mascot-body{animation:fts-mascot-tilt 1.5s ease-in-out infinite alternate}
+.fts-mascot-stopped .fts-mascot-arm{animation:fts-mascot-wave .75s ease-in-out infinite alternate}
+.fts-mascot-stopped .fts-mascot-pupils{animation:fts-mascot-ponder 3s ease-in-out infinite}
+.fts-mascot-stopped .fts-mascot-eyes{animation:fts-mascot-blink 3s infinite}
+
+/* Every loop starts and ends on the same frame, or alternates. */
+@keyframes fts-mascot-sweep{0%,10%,100%{transform:rotate(0deg)}45%,58%{transform:rotate(-48deg)}}
+@keyframes fts-mascot-follow{0%,10%,100%{transform:translate(2.8px,-1.4px)}42%{transform:translate(1.4px,-3px)}50%,56%{transform:translate(-2.8px,-.6px)}68%{transform:translate(1.6px,-2.8px)}}
+@keyframes fts-mascot-lean{0%,10%,100%{transform:rotate(1deg)}45%,58%{transform:rotate(-2.5deg)}}
+@keyframes fts-mascot-blink{0%,90%,100%{transform:scaleY(1)}95%{transform:scaleY(.1)}}
+@keyframes fts-mascot-crank{0%,28%,58%,100%{transform:rotate(-22deg)}12%,42%{transform:rotate(2deg)}}
+@keyframes fts-mascot-effort{0%,28%,58%,100%{transform:translateY(0) scale(1,1)}12%,42%{transform:translateY(1.5px) scale(1.025,.955)}}
+@keyframes fts-mascot-squint{0%,28%,58%,100%{transform:scaleY(1)}12%,42%{transform:scaleY(.7)}}
+@keyframes fts-mascot-spark{0%,5%,26%,35%,56%,100%{opacity:0;transform:scale(.5)}12%,42%{opacity:1;transform:scale(1)}}
+@keyframes fts-mascot-sway{from{transform:rotate(-1.5deg)}to{transform:rotate(2deg)}}
+@keyframes fts-mascot-scan{0%,12%,100%{transform:translate(-2.4px,0)}24%,36%{transform:translate(0,.8px)}48%,88%{transform:translate(2.4px,0)}}
+@keyframes fts-mascot-tick{0%,46%{opacity:0;transform:scale(.4)}56%{opacity:1;transform:scale(1.12)}62%,84%{opacity:1;transform:scale(1)}96%{opacity:0;transform:scale(1)}100%{opacity:0;transform:scale(.4)}}
+@keyframes fts-mascot-bob{from{transform:translateY(0)}to{transform:translateY(-2.5px)}}
+@keyframes fts-mascot-wave{from{transform:rotate(-5deg)}to{transform:rotate(2deg)}}
+@keyframes fts-mascot-glance{0%,38%,100%{transform:translate(0,0)}50%,86%{transform:translate(2.4px,-2px)}}
+@keyframes fts-mascot-pulse{from{transform:scale(1)}to{transform:scale(1.2)}}
+@keyframes fts-mascot-tilt{from{transform:rotate(-5deg)}to{transform:rotate(-9deg)}}
+@keyframes fts-mascot-ponder{0%,40%,100%{transform:translate(-2px,-2.4px)}52%,88%{transform:translate(2.2px,-2.4px)}}
+
+@media (prefers-reduced-motion:reduce){
+  .fts-mascot *{animation:none!important}
+}
+
