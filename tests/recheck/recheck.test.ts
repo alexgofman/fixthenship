@@ -86,12 +86,17 @@ function fakeGitHub(conflicts: number[] = []): { fetch: typeof fetch; calls: Cal
     const headers = (init.headers ?? {}) as Record<string, string>;
     calls.push({ method, url, body: init.body ? JSON.parse(String(init.body)) : undefined, auth: headers.Authorization });
     const n = Number(url.match(/\/pulls\/(\d+)/)?.[1]);
-    if (method === "GET") return json({ state: "open", merged: false, base: { ref: "store-ready-run1" }, head: { sha: `sha${n}` } });
+    if (method === "GET") {
+      return json({ state: "open", merged: false, base: { ref: "store-ready-run1" }, head: { sha: `sha${n}`, repo: { full_name: "acme/app" } } });
+    }
     if (conflicts.includes(n)) return json({ message: "Pull Request is not mergeable" }, 405);
     return json({ merged: true, sha: "abc" });
   };
   return { fetch: fake as typeof fetch, calls };
 }
+
+/** mergeFixes waits between merge retries; these tests do not. */
+const noWait = async () => {};
 
 type FakeChild = ChildProcess & { finish: (code: number) => void };
 
@@ -183,21 +188,24 @@ function byRule(run: Run): Record<string, Finding> {
 }
 
 describe("mergeFixes", () => {
-  it("merges finished pull requests one at a time and leaves refused ones amber with the link", async () => {
+  it("merges delivered pull requests one at a time and leaves refused ones amber with the link", async () => {
     await makeRun(
       [finding("R2"), finding("R5"), finding("R6")],
       [fix("R2", 11), fix("R5", 12), fix("R6", 13, "error"), { ...fix("R6", 14), prUrl: "" }],
     );
     const gh = fakeGitHub([12]);
 
-    const result = await mergeFixes("run1", { fetch: gh.fetch });
+    const result = await mergeFixes("run1", { fetch: gh.fetch, sleep: noWait });
 
-    expect(result).toEqual({ merged: ["R2"], skipped: ["R5"] });
+    // R6's session ended in error after opening its pull request: still a fix to merge.
+    expect(result).toEqual({ merged: ["R2", "R6"], skipped: ["R5"] });
     expect(gh.calls.map((c) => `${c.method} ${c.url}`)).toEqual([
       "GET https://api.github.com/repos/acme/app/pulls/11",
       "PUT https://api.github.com/repos/acme/app/pulls/11/merge",
-      "GET https://api.github.com/repos/acme/app/pulls/12",
-      "PUT https://api.github.com/repos/acme/app/pulls/12/merge",
+      // Refused with 405: read again and retried twice.
+      ...Array(3).fill(["GET https://api.github.com/repos/acme/app/pulls/12", "PUT https://api.github.com/repos/acme/app/pulls/12/merge"]).flat(),
+      "GET https://api.github.com/repos/acme/app/pulls/13",
+      "PUT https://api.github.com/repos/acme/app/pulls/13/merge",
     ]);
     expect(gh.calls[1].body).toMatchObject({ merge_method: "merge", sha: "sha11" });
     expect(gh.calls.every((c) => c.auth === "Bearer ghp_test")).toBe(true);
@@ -223,7 +231,7 @@ describe("mergeFixes binds pull requests to the run's repository", () => {
     );
     const gh = fakeGitHub();
 
-    const result = await mergeFixes("run1", { fetch: gh.fetch });
+    const result = await mergeFixes("run1", { fetch: gh.fetch, sleep: noWait });
 
     expect(result).toEqual({ merged: ["R5"], skipped: ["R2"] });
     expect(gh.calls.some((c) => c.url.includes("/41") || c.url.includes("/evil/"))).toBe(false);
@@ -247,7 +255,7 @@ describe("mergeFixes binds pull requests to the run's repository", () => {
     );
     const gh = fakeGitHub();
 
-    const result = await mergeFixes("run1", { fetch: gh.fetch });
+    const result = await mergeFixes("run1", { fetch: gh.fetch, sleep: noWait });
 
     expect(result).toEqual({ merged: [], skipped: rules });
     expect(gh.calls).toEqual([]);
@@ -299,7 +307,7 @@ describe("recheckApp", () => {
 
     await recheckApp("run1", {
       ...h.deps,
-      mergeFixes: (runId) => mergeFixes(runId, { fetch: gh.fetch }),
+      mergeFixes: (runId) => mergeFixes(runId, { fetch: gh.fetch, sleep: noWait }),
       runChecks: checksWith({ R6: "fail" }),
     });
 
@@ -334,19 +342,19 @@ describe("recheckApp", () => {
   it("is never green when no fix was merged for the finding, even if the check passes", async () => {
     await makeRun(
       [finding("R2"), finding("R5"), finding("R6"), finding("R7"), finding("R9")],
-      [fix("R2", 61, "error"), { ...fix("R5", 62), prUrl: "" }, fix("R9", 63)],
+      [{ ...fix("R2", 61, "error"), prUrl: "" }, { ...fix("R5", 62), prUrl: "" }, fix("R9", 63)],
     );
     const h = harness();
 
     await recheckApp("run1", {
       ...h.deps,
-      mergeFixes: (runId) => mergeFixes(runId, { fetch: fakeGitHub().fetch }),
+      mergeFixes: (runId) => mergeFixes(runId, { fetch: fakeGitHub().fetch, sleep: noWait }),
       runChecks: checksWith({ R6: "not_checked" }),
     });
 
     const saved = byRule(await loadRun("run1"));
     const notMerged = "No fix was merged for this finding, so it is not counted as fixed.";
-    // R2: the session failed. R5: no pull request. R6 and R7: no fix session at all. R7 is never green, but not amber either.
+    // R2: the session failed before a pull request. R5: no pull request. R6 and R7: no fix session at all. R7 is never green, but not amber either.
     for (const rule of ["R2", "R5", "R6", "R7"]) {
       expect(saved[rule]).toMatchObject({ finalState: "red", detail: `Detail ${rule}. ${notMerged}` });
     }
@@ -450,7 +458,7 @@ describe("recheckApp", () => {
 
     await recheckApp("run1", {
       ...h.deps,
-      mergeFixes: (runId) => mergeFixes(runId, { fetch: fakeGitHub([31]).fetch }),
+      mergeFixes: (runId) => mergeFixes(runId, { fetch: fakeGitHub([31]).fetch, sleep: noWait }),
       runChecks: checks,
     });
 
