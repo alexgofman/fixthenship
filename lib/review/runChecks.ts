@@ -1,4 +1,5 @@
 import { spawn as nodeSpawn, type ChildProcess, type SpawnOptions } from "node:child_process";
+import { existsSync } from "node:fs";
 import { randomBytes, randomUUID } from "node:crypto";
 import { cp, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -36,6 +37,14 @@ type Exit = { code: number | null; timedOut: boolean; error?: string; output: st
 
 function generatePassword(): string {
   return `Ft-${randomBytes(9).toString("base64url")}-7a`;
+}
+
+/**
+ * A switch for demos: with SHOW_BROWSER=1, or a file runs/.show-browser, each check opens its phone-size
+ * browser as a window you can watch. Off by default; the checks themselves are the same either way.
+ */
+export function showBrowser(cwd: string): boolean {
+  return process.env.SHOW_BROWSER === "1" || existsSync(path.join(cwd, "runs", ".show-browser"));
 }
 
 function runProcess(spawn: SpawnFn, args: string[], options: SpawnOptions, timeoutMs: number): Promise<Exit> {
@@ -150,7 +159,7 @@ async function runOne(
 
   const exit = await runProcess(
     opts.spawn,
-    ["e2e", "run", `checks/${ruleId}.e2e.ts`, "--trace", "--output", e2eOut],
+    ["e2e", "run", `checks/${ruleId}.e2e.ts`, "--trace", "--output", e2eOut, ...(showBrowser(opts.cwd) ? ["--headed"] : [])],
     {
       cwd: opts.cwd,
       detached: true,
