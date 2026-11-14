@@ -389,7 +389,6 @@ h2 {
   color: var(--accent-dark);
   font-size: 12px;
   font-weight: 650;
-  text-transform: capitalize;
   flex: none;
 }
 
@@ -511,7 +510,6 @@ h2 {
 
 .timeline-caption strong {
   color: var(--fg);
-  text-transform: capitalize;
 }
 
 .timeline {
@@ -559,10 +557,6 @@ h2 {
   font-family: var(--mono);
   font-size: 12px;
   font-weight: 700;
-}
-
-.timeline-label {
-  text-transform: capitalize;
 }
 
 .timeline li.past {

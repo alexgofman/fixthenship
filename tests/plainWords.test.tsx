@@ -1,9 +1,13 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import Timeline from "../components/Timeline";
 import { rejectionSentence, runName } from "../components/findingDisplay";
-import { CHECK_STEPS, PLAIN_WORDS } from "../lib/plainWords";
+import { CHECK_STEPS, PLAIN_WORDS, STAGE_WORDS } from "../lib/plainWords";
 import { REVIEW_RULES } from "../lib/review/pipeline";
 import { loadExampleRun } from "../lib/store";
-import { RULE_IDS, type Run } from "../lib/types";
+import { RULE_IDS, STAGES, type Run } from "../lib/types";
 
 describe("plain words", () => {
   it("has a problem, why Apple cares and what we do for every rule", () => {
@@ -40,5 +44,24 @@ describe("runName", () => {
   it("uses the app's host when there is no repository", () => {
     expect(runName({ repoUrl: "", appUrl: "https://yourapp.lovable.app/" })).toBe("yourapp.lovable.app");
     expect(runName({ repoUrl: "https://github.com/o/habit-tracker.git", appUrl: "x" })).toBe("habit-tracker");
+  });
+});
+
+describe("stage words in the timeline", () => {
+  it("call the first step Getting ready, since a review from a link reads no code", () => {
+    expect(STAGE_WORDS.scanning).toBe("Getting ready");
+    expect(renderToStaticMarkup(<Timeline stage="scanning" error="" />)).toContain("Getting ready");
+  });
+
+  it("are written in sentence case and shown as written", () => {
+    for (const s of STAGES) {
+      const [first, ...rest] = STAGE_WORDS[s].split(" ");
+      expect(first[0]).toBe(first[0].toUpperCase());
+      for (const w of rest) expect(w).toBe(w.toLowerCase());
+    }
+    const css = readFileSync(path.join(process.cwd(), "app", "globals.css"), "utf8");
+    for (const [, selector, body] of css.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
+      if (/\.timeline|\.stage-chip/.test(selector)) expect(body).not.toMatch(/text-transform:\s*capitalize/);
+    }
   });
 });

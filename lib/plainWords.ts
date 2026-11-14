@@ -95,7 +95,7 @@ export const CHECK_STEPS: { ruleId: RuleId; text: string }[] = [
 
 /** The stage names people see; the stage itself stays the CSS class. */
 export const STAGE_WORDS: Record<Stage, string> = {
-  scanning: "Reading the code",
+  scanning: "Getting ready",
   checking: "Checking the app",
   reviewed: "Review ready",
   fixing: "Fixing",
