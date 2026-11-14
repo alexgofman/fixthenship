@@ -13,8 +13,8 @@ node_modules
 next-env.d.ts
 *.tsbuildinfo
 
-# runs are stored on disk, one folder per run
-runs/
+# runs are stored on disk, one folder per run (anchored with / so app/runs and app/api/runs are not ignored)
+/runs/
 
 # env files
 .env.local
