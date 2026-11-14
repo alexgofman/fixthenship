@@ -17,6 +17,8 @@ beforeEach(async () => {
   dir = await mkdtemp(path.join(os.tmpdir(), "fixthenship-recheck-"));
   process.env.RUNS_DIR = dir;
   process.env.GITHUB_TOKEN = "ghp_test";
+  // No real Devin session is ever messaged from these tests.
+  vi.stubEnv("DEVIN_API_KEY", "");
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -24,6 +26,7 @@ afterEach(async () => {
   delete process.env.RUNS_DIR;
   delete process.env.GITHUB_TOKEN;
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
   await rm(dir, { recursive: true, force: true });
 });
 
