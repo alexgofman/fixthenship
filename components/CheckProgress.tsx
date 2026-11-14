@@ -1,5 +1,5 @@
 import type { Run } from "@/lib/types";
-import { checkProgress, type StepStatus } from "./checkProgress";
+import { checkProgress, type StepStatus } from "./checkSteps";
 
 const ICON: Partial<Record<StepStatus, string>> = { done: "✓", pass: "✓", fail: "✕", skipped: "–" };
 

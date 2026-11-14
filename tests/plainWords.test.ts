@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkProgress } from "../components/checkProgress";
+import { checkProgress } from "../components/checkSteps";
 import { rejectionSentence, runName } from "../components/findingDisplay";
 import { CHECK_STEPS, PLAIN_WORDS } from "../lib/plainWords";
 import { REVIEW_RULES } from "../lib/review/pipeline";
