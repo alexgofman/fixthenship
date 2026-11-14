@@ -1,6 +1,6 @@
 # FixThenShip
 
-FixThenShip reviews an AI-built web app the way Apple's App Store reviewer would, starts Devin sessions to fix what it finds, and re-checks.
+FixThenShip gets an AI-built iPhone app ready for Apple's App Store: it reviews the app's web version the way Apple's App Store reviewer would, starts Devin sessions to fix what it finds, and re-checks.
 
 Website and a saved copy of a real review: https://fixthenship.netlify.app
 
