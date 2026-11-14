@@ -42,8 +42,9 @@ All three start from the app's web link, the one the app builder gives on Publis
 ## Why you can trust the result
 
 - Devin does not mark its own work. Our own checks run again on the fixed app.
-- A check that could not tell is reported as not checked, never as a problem.
-- Three rules never end green: Sign in with Apple, in-app purchase and the builder's badge. The first two need the developer's own Apple keys or purchase setup; the badge is added by the builder's hosting, not your code.
+- A check that could not tell is reported as "could not check", never as a problem or a pass.
+- A finding is green only when its fix was merged and our own check passed on the fixed app.
+- Three kinds of finding never end green: Sign in with Apple, in-app purchase and the builder's badge. The first two need the developer's own Apple keys or purchase setup; the badge is added by the builder's hosting, not your code.
 - The wording is always "likely" and "risk". Apple makes the decision.
 
 ```mermaid
@@ -71,16 +72,19 @@ Create `.env.local`:
 ```bash
 GOOGLE_GENERATIVE_AI_API_KEY=   # Gemini, used by the app checks
 MODEL=                          # model id for the app checks (default gemini-flash-latest)
+MODEL_FALLBACKS=                # optional comma-separated models tried when MODEL does not answer
 DEVIN_API_KEY=                  # starts and polls fix sessions
-DEVIN_ORG_ID=
+DEVIN_ORG_ID=                   # the Devin organization the fix sessions run in
 DEVIN_MODE=                     # optional Devin mode for fix sessions
 DEVIN_MAX_ACU=                  # optional limit per fix session (default 5)
 GITHUB_TOKEN=                   # reads the repository, its pull requests, and merges into a `store-ready-<run>` branch, one per review
 TEST_EMAIL_DOMAIN=              # optional domain for test accounts (default mailinator.com)
 TEST_EMAIL=                     # optional fixed test account
-TEST_PASSWORD=
+TEST_PASSWORD=                  # optional password for test accounts
 RUNS_DIR=                       # optional folder for runs (default ./runs)
 ```
+
+A free Gemini key allows about ten reviews a day; a paid key costs a few cents per review.
 
 ```bash
 npm run dev    # http://localhost:3000
