@@ -87,6 +87,12 @@ describe("decode", () => {
     expect(decode("5.1.1(v)")).toMatchObject({ guideline: "5.1.1(v)", ourCheck: "R6", fellBack: false });
   });
 
+  it("reads Apple's 4.0 as the design rule 4", () => {
+    expect(findGuidelines("Guideline 4.0 - Design")).toEqual(["4.0"]);
+    expect(decode("4.0")).toMatchObject({ guideline: "4", fellBack: false });
+    expect(decode("4")).toMatchObject({ guideline: "4", fellBack: false });
+  });
+
   it("falls back to the parent and says so", () => {
     expect(decode("2.1(c)")).toMatchObject({ guideline: "2.1", ourCheck: "R1, R2, R3, R4", fellBack: true });
     expect(decode("2.3.3(b)")).toMatchObject({ guideline: "2.3.3", fellBack: true });

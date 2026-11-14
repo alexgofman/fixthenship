@@ -54,10 +54,15 @@ function parentOf(number: string): string | undefined {
   return parts.length > 2 ? parts.slice(0, -1).join(".") : undefined;
 }
 
+/** Apple writes the design rule 4 as "4.0"; both name the same entry. */
+function entryKey(number: string): string {
+  return normalize(number).replace(/^(\d+)\.0$/, "$1");
+}
+
 export function decode(number: string): Decoded | undefined {
-  const asked = normalize(number);
+  const asked = entryKey(number);
   for (let n: string | undefined = asked; n; n = parentOf(n)) {
-    const entry = ENTRIES.find((e) => normalize(e.guideline) === n);
+    const entry = ENTRIES.find((e) => entryKey(e.guideline) === n);
     if (entry) return { ...entry, fellBack: n !== asked };
   }
   return undefined;
