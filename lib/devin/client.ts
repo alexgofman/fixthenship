@@ -7,6 +7,8 @@ export type CreateSessionOptions = {
   tags?: string[];
   maxAcu?: number;
   schema?: object;
+  /** Devin's mode, e.g. "fast" or "ultra"; falls back to DEVIN_MODE, else the account's default. */
+  mode?: string;
 };
 
 export type DevinSession = {
@@ -109,6 +111,8 @@ export function createSessionBody(prompt: string, options: CreateSessionOptions 
   if (options.tags !== undefined) body.tags = options.tags;
   if (options.maxAcu !== undefined) body.max_acu_limit = options.maxAcu;
   if (options.schema !== undefined) body.structured_output_schema = options.schema;
+  const mode = options.mode || process.env.DEVIN_MODE;
+  if (mode) body.devin_mode = mode;
   return body;
 }
 

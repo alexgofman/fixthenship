@@ -10,6 +10,7 @@ beforeEach(() => {
 afterEach(() => {
   delete process.env.DEVIN_API_KEY;
   delete process.env.DEVIN_ORG_ID;
+  delete process.env.DEVIN_MODE;
   vi.unstubAllGlobals();
 });
 
@@ -50,6 +51,19 @@ describe("Devin client", () => {
       max_acu_limit: 5,
       structured_output_schema: schema,
     });
+  });
+
+  it("sends devin_mode from the option or DEVIN_MODE, and none when neither is set", async () => {
+    const calls = fakeFetch([["POST /sessions", () => json({ session_id: "devin-1", url: "u", status: "new" })]]);
+
+    await createSession("Fix it");
+    process.env.DEVIN_MODE = "ultra";
+    await createSession("Fix it");
+    await createSession("Fix it", { mode: "fast" });
+
+    expect(calls[0].body).not.toHaveProperty("devin_mode");
+    expect(calls[1].body).toMatchObject({ devin_mode: "ultra" });
+    expect(calls[2].body).toMatchObject({ devin_mode: "fast" });
   });
 
   it("reads status, first pull request, summary and ACUs", async () => {
