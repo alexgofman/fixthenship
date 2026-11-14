@@ -124,6 +124,33 @@ describe("with Devin", () => {
     expect(polled.stage).toBe("fixed");
     expect((await loadRun("run1")).stage).toBe("fixed");
   });
+
+  it("counts a session that waits for a reply with its pull request open as finished", async () => {
+    const run = makeRun("run1", findings());
+    run.stage = "fixing";
+    run.fixes = [
+      { ruleId: "R2", sessionId: "a", url: "", status: "working", prUrl: "", summary: "", acus: 0 },
+      { ruleId: "R5", sessionId: "b", url: "", status: "working", prUrl: "", summary: "", acus: 0 },
+    ];
+    await saveRun(run);
+
+    let bStillWorking = true;
+    fakeFetch([
+      // Done: the pull request is open and Devin waits for a reply.
+      ["GET /sessions/a", () => json({ session_id: "a", url: "", status: "running", status_detail: "waiting_for_user", pull_requests: [{ pr_url: "pr-a" }], structured_output: { summary: "fixed R2" } })],
+      // Asks a question before any pull request exists: nobody is working, but nothing is fixed.
+      ["GET /sessions/b", () => json({ session_id: "b", url: "", status: "running", status_detail: bStillWorking ? "working" : "waiting_for_user", pull_requests: [] })],
+    ]);
+
+    let polled = await pollFixes("run1");
+    expect(polled.fixes.map((f) => f.status)).toEqual(["finished", "working"]);
+    expect(polled.stage).toBe("fixing");
+
+    bStillWorking = false;
+    polled = await pollFixes("run1");
+    expect(polled.fixes.map((f) => f.status)).toEqual(["finished", "waiting"]);
+    expect(polled.stage).toBe("fixed");
+  });
 });
 
 describe("without DEVIN_API_KEY", () => {

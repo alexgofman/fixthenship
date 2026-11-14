@@ -17,7 +17,11 @@ export function matchPullRequest(pulls: PullRequest[], ruleId: RuleId): PullRequ
 async function pollSession(fix: FixSession): Promise<FixSession> {
   try {
     const s = await getSession(fix.sessionId);
-    return { ...fix, status: s.status, prUrl: s.prUrl || fix.prUrl, summary: s.summary || fix.summary, acus: s.acus };
+    const prUrl = s.prUrl || fix.prUrl;
+    // A session that has opened its pull request and now waits for a reply has done its work. Devin only
+    // reports it as finished about ten minutes later, when it suspends the idle session.
+    const status = s.status === "waiting" && prUrl ? "finished" : s.status;
+    return { ...fix, status, prUrl, summary: s.summary || fix.summary, acus: s.acus };
   } catch (err) {
     console.error(`pollFixes: session ${fix.sessionId} (${fix.ruleId}): ${errorMessage(err)}`);
     return fix;
@@ -38,7 +42,12 @@ async function pollPullRequests(run: Run, fixes: FixSession[]): Promise<FixSessi
   });
 }
 
-/** Refreshes every unfinished fix; sets stage "fixed" once all are finished or in error. */
+/** Nobody is working on it any more: finished, failed, or waiting for an answer with no pull request yet. */
+function isSettled(fix: FixSession): boolean {
+  return isDone(fix) || fix.status === "waiting";
+}
+
+/** Refreshes every unfinished fix; sets stage "fixed" once no session is still working. */
 export async function pollFixes(runId: string): Promise<Run> {
   const run = await loadRun(runId);
   const open = run.fixes.filter((f) => !isDone(f));
@@ -50,7 +59,7 @@ export async function pollFixes(runId: string): Promise<Run> {
 
   const latest = await loadRun(runId);
   latest.fixes = latest.fixes.map((f) => updates.get(f.ruleId) ?? f);
-  if (latest.stage === "fixing" && latest.fixes.every(isDone)) latest.stage = "fixed";
+  if (latest.stage === "fixing" && latest.fixes.every(isSettled)) latest.stage = "fixed";
   await saveRun(latest);
   return latest;
 }
