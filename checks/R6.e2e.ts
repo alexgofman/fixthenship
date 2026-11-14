@@ -1,5 +1,5 @@
 import { test } from "e2e";
-import { markNotChecked, signUp } from "./support";
+import { markNotChecked, signUp, STEP_LIMIT_MS } from "./support";
 
 test("an account can be deleted", async ({ app, agent }) => {
   await app.open("/");
@@ -9,7 +9,7 @@ test("an account can be deleted", async ({ app, agent }) => {
     test.skip(notPossible);
   }
 
-  await agent.act("Open the settings, profile or account screen of the signed-in user.");
+  await agent.act("Open the settings, profile or account screen of the signed-in user.", { timeout: STEP_LIMIT_MS });
   await agent.assert(
     "this screen offers a way to delete the account, such as a 'Delete account' button or link",
     { explore: true },

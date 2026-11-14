@@ -1,42 +1,81 @@
-import { isAgentError, test, type Agent } from "e2e";
-import { markNotChecked, signUp } from "./support";
+import { test } from "@e2e-dev/web";
+import { isAgentError } from "e2e";
+import { signUp } from "./support";
 
-const SUPPORT_SHOWN =
-  "the screen shows a way to get support: a support, help, FAQ or contact page, a contact form, or a support or contact email address";
+const MAX_LINKED_SCREENS = 4;
 
-/** True when a support page or address is found and shown; false when none is there. */
-async function findSupport(agent: Agent, where: string): Promise<boolean> {
-  try {
-    await agent.act(
-      `Look ${where} for a link to a support, help or contact page, or for a support or contact email address. Open the page if there is a link to one; for an email address, do not open it but scroll until it is visible. Do not send anything.`,
-    );
-    await agent.assert(SUPPORT_SHOWN);
-    return true;
-  } catch (error) {
-    if (isAgentError(error) && error.code.startsWith("MODEL_")) throw error;
-    return false;
+/** Runs in the page: the links and buttons that lead to support, and any contact address the screen shows. */
+function supportOnScreen(): string[] {
+  const found: string[] = [];
+  const words = /\b(support|help|contact|faq|feedback)\b/i;
+  for (const el of Array.from(document.querySelectorAll<HTMLElement>("a[href], button, [role='button'], [role='link']"))) {
+    const label = (el.innerText || el.getAttribute("aria-label") || el.getAttribute("title") || "").replace(/\s+/g, " ").trim();
+    const href = el instanceof HTMLAnchorElement ? (el.getAttribute("href") ?? "") : "";
+    if (words.test(label) || /^mailto:/i.test(href) || /\/(support|help|contact|faq)\b/i.test(href)) found.push(label || href);
   }
+  const text = document.body.innerText;
+  const address = text.match(/[\w.+-]+@[\w-]+\.[\w.-]+/);
+  if (address && /support|contact|help|get in touch|reach us|email us/i.test(text)) found.push(address[0]);
+  return found;
 }
 
-test("a support or contact page exists", async ({ app, agent }) => {
-  await app.open("/");
-  if (await findSupport(agent, "on this screen, in its menu and in its footer")) return;
+/** Runs in the page: where the links on this screen lead. */
+function linksOnScreen(): string[] {
+  return Array.from(document.querySelectorAll<HTMLAnchorElement>("a[href]")).map((a) => a.href);
+}
+
+test("a support or contact page exists", async ({ app, agent, browser }) => {
+  // Read the screens directly: a list of links is a fact, so no model has to go looking for one.
+  const supportAt = async (place: string): Promise<boolean> => {
+    const found = await browser.evaluate(supportOnScreen);
+    if (found.length > 0) console.log(`Support found ${place}: "${found[0]}".`);
+    return found.length > 0;
+  };
+
+  /** Opens a screen; an app that is still redirecting gets a second try, and a screen that will not open is skipped. */
+  const opened = async (screen: string): Promise<boolean> => {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        await app.open(screen);
+        return true;
+      } catch {
+        await new Promise((resolve) => setTimeout(resolve, 1_500));
+      }
+    }
+    console.log(`${screen} could not be opened, so it was not searched.`);
+    return false;
+  };
 
   await app.open("/");
+  if (await supportAt("on the first screen")) return;
+
+  const home = new URL(await browser.url());
+  const linked: string[] = [];
+  for (const href of await browser.evaluate(linksOnScreen)) {
+    const url = new URL(href);
+    if (url.origin === home.origin && url.pathname !== home.pathname && !linked.includes(url.pathname)) linked.push(url.pathname);
+  }
+  for (const screen of linked.slice(0, MAX_LINKED_SCREENS)) {
+    if (!(await opened(screen))) continue;
+    if (await supportAt(`on ${screen}`)) return;
+  }
+
+  if (!(await opened("/"))) await app.open("/");
   const notPossible = await signUp(agent);
-  if (!notPossible) {
-    try {
-      await agent.act("Open the settings, profile or account screen of the signed-in user.");
-    } catch (error) {
-      if (isAgentError(error) && error.code.startsWith("MODEL_")) throw error;
-    }
-    if (await findSupport(agent, "on this screen, in the menu and in the footer")) return;
+  if (notPossible) {
     throw new Error(
-      "No support, help or contact page and no support email address was found on the first screen, in the menu, the footer or the settings screen.",
+      `No support, help or contact page and no support email address was found on the public screens (the settings screen could not be checked: ${notPossible.replace(/[.!?]+$/, "").replace(/[.!?]\s/g, ", ")}).`,
     );
   }
 
+  if (await supportAt("on the first screen after signing in")) return;
+  try {
+    await agent.act("Open the settings, profile or account screen of the signed-in user.", { timeout: 40_000 });
+    if (await supportAt("on the settings screen")) return;
+  } catch (error) {
+    if (isAgentError(error) && error.code.startsWith("MODEL_")) throw error;
+  }
   throw new Error(
-    `No support, help or contact page and no support email address was found on the public screens (the settings screen could not be checked: ${notPossible.replace(/[.!?]+$/, "").replace(/[.!?]\s/g, ", ")}).`,
+    "No support, help or contact page and no support email address was found on the first screen, the screens it links to, or the settings screen.",
   );
 });

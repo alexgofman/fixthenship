@@ -4,6 +4,9 @@ import path from "node:path";
 import { isAgentError, secrets, type Agent } from "e2e";
 import { z } from "zod";
 
+/** No single step may use up the whole check: a step that wanders this long has not found what it was looking for. */
+export const STEP_LIMIT_MS = 45_000;
+
 /** Tells the runner this check could not be performed; the reason is shown to the user. */
 export function markNotChecked(reason: string): void {
   const dir = process.env.CHECK_OUT_DIR;
@@ -29,37 +32,54 @@ export async function signUp(agent: Agent): Promise<string | null> {
   try {
     await agent.act(
       "Open the screen where a new user creates an account (sign up, register, create account or get started). Do not fill anything in yet.",
+      { timeout: STEP_LIMIT_MS },
     );
   } catch (error) {
     if (isAgentError(error) && error.code.startsWith("MODEL_")) throw error;
     return `No sign-up screen was found: ${explain(error)}`;
   }
 
-  const form = await agent.extract(
-    "whether this screen lets a new user sign up with an email address and a password",
-    { schema: z.object({ emailSignup: z.boolean(), note: z.string() }) },
-  );
-  if (!form.emailSignup) return `The app offers no sign-up with email and password: ${form.note}`;
+  // A question the screen cannot answer is "could not tell", never a finding against the app.
+  try {
+    const form = await agent.extract(
+      "whether this screen lets a new user sign up with an email address and a password",
+      { schema: z.object({ emailSignup: z.boolean(), note: z.string() }) },
+    );
+    if (!form.emailSignup) return `The app offers no sign-up with email and password: ${form.note}`;
+  } catch (error) {
+    if (isAgentError(error) && error.code.startsWith("MODEL_")) throw error;
+    return `It was not clear whether the app offers sign-up with email and password: ${explain(error)}`;
+  }
 
   try {
     await agent.act(
       "Sign up with the email {email} and the password {password}. Accept any required terms and submit the form.",
-      { params: { email: testEmail(), password: secrets.get("testPassword") } },
+      { params: { email: testEmail(), password: secrets.get("testPassword") }, timeout: STEP_LIMIT_MS },
     );
   } catch (error) {
     if (isAgentError(error) && error.code.startsWith("MODEL_")) throw error;
     return `Sign-up could not be completed: ${explain(error)}`;
   }
 
-  const after = await agent.extract("what happened after the sign-up form was submitted", {
-    schema: z.object({
-      outcome: z.enum(["signed_in", "email_confirmation_required", "error"]),
-      message: z.string(),
-    }),
-  });
-  if (after.outcome === "email_confirmation_required") {
-    return "Sign-up requires confirming the email address, so the reviewer account could not be used.";
+  try {
+    // Asked about what is on the screen now, which is always there to read; "what happened" is not.
+    const after = await agent.extract(
+      "the state of the app right after the sign-up form was submitted, judged from this screen: 'signed_in' when the sign-up form is gone and the app shows its own screens (a home screen, a dashboard, settings, a welcome or onboarding step, or a sign-out option); 'email_confirmation_required' when it asks the user to confirm or verify the email address before going on; 'still_on_form' when the sign-up form is still shown without an error; 'error' when an error message about the sign-up is shown",
+      {
+        schema: z.object({
+          outcome: z.enum(["signed_in", "email_confirmation_required", "still_on_form", "error"]),
+          message: z.string(),
+        }),
+      },
+    );
+    if (after.outcome === "email_confirmation_required") {
+      return "Sign-up requires confirming the email address, so the reviewer account could not be used.";
+    }
+    if (after.outcome === "still_on_form") return "Sign-up could not be completed: the form was still shown after it was submitted.";
+    if (after.outcome === "error") return `Sign-up failed: ${after.message}`;
+    return null;
+  } catch (error) {
+    if (isAgentError(error) && error.code.startsWith("MODEL_")) throw error;
+    return `It was not clear whether sign-up worked: ${explain(error)}`;
   }
-  if (after.outcome === "error") return `Sign-up failed: ${after.message}`;
-  return null;
 }

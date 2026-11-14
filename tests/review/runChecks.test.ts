@@ -112,9 +112,11 @@ describe("runChecks", () => {
       ["R5", "not_checked"],
       ["R6", "not_checked"],
     ]);
+    // A check that could not run is tried once more, with its own test account.
     expect(calls.map((c) => c.args.slice(0, 4))).toEqual(
-      ["R1", "R2", "R5", "R6"].map((id) => ["e2e", "run", `checks/${id}.e2e.ts`, "--trace"]),
+      ["R1", "R2", "R5", "R5", "R6", "R6"].map((id) => ["e2e", "run", `checks/${id}.e2e.ts`, "--trace"]),
     );
+    expect(calls[3].env.TEST_EMAIL).toBe("reviewer+abc.r5.2@example.com");
     expect(calls[0].env).toMatchObject({
       APP_URL: "https://app.test",
       TEST_EMAIL: "reviewer+abc.r1@example.com",
@@ -139,6 +141,27 @@ describe("runChecks", () => {
     expect(results).toMatchObject([
       { ruleId: "R6", outcome: "not_checked", reason: "Sign-up requires confirming the email address." },
       { ruleId: "R8", outcome: "not_checked", reason: "No email sign-up." },
+    ]);
+  });
+
+  it("treats a check that could not tell as not checked, never as a finding", async () => {
+    const trace = `# ✗ digital goods are not sold through outside checkout
+
+**ASSERTION_INCONCLUSIVE**
+
+\`\`\`text
+agent.extract failed
+nothing to extract: the screen shows the home screen.
+\`\`\`
+
+## Steps
+
+1. ✓ \`app.open\` \`/\` (774ms) — \`checks/R8.e2e.ts:9\`
+`;
+    const spawn = fakeSpawn({ R8: { code: 1, trace } }, []);
+    const results = await runChecks("https://app.test", dir, ["R8"], { spawn, cwd: dir });
+    expect(results).toMatchObject([
+      { ruleId: "R8", outcome: "not_checked", reason: "The check could not tell: nothing to extract: the screen shows the home screen." },
     ]);
   });
 

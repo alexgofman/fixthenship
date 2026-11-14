@@ -1,6 +1,6 @@
 import { test } from "@e2e-dev/web";
 import { expect, isAgentError } from "e2e";
-import { markNotChecked, signUp } from "./support";
+import { markNotChecked, signUp, STEP_LIMIT_MS } from "./support";
 
 const OUTSIDE_CHECKOUT = /stripe\.com|paddle\.com|lemonsqueezy\.com|paypal\.com|gumroad\.com|chargebee\.com|polar\.sh/i;
 
@@ -15,6 +15,7 @@ test("digital goods are not sold through outside checkout", async ({ app, agent,
   try {
     await agent.act(
       "Find the paid plan, subscription, upgrade or Pro option and start buying it: press the button that starts the purchase, then stop. Do not enter any payment details.",
+      { timeout: STEP_LIMIT_MS },
     );
   } catch (error) {
     if (isAgentError(error) && error.code.startsWith("MODEL_")) throw error;

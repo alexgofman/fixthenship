@@ -1,10 +1,12 @@
 import { isAgentError, test } from "e2e";
+import { STEP_LIMIT_MS } from "./support";
 
 test("a privacy policy is reachable", async ({ app, agent }) => {
   await app.open("/");
   try {
     await agent.act(
       "Find a link to the privacy policy on this screen, in the menu, in the footer or on the sign-up screen, and open it.",
+      { timeout: STEP_LIMIT_MS },
     );
   } catch (error) {
     // A model failure is not a finding; let the runner report the check as not checked.

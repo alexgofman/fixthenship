@@ -7,6 +7,8 @@ import { parseSteps, traceReason } from "./trace";
 
 export const CHECK_TIMEOUT_MS = 120_000;
 export const NOT_CHECKED_FILE = "not_checked.txt";
+/** Reasons that come from our own tools having a bad moment, not from the app. */
+const RETRY_WORTHWHILE = /timeout|timed out|ran out of time|did not finish|could not tell|not clear|could not run|ENGINE_FAILURE/i;
 
 type SpawnFn = (command: string, args: string[], options: SpawnOptions) => ChildProcess;
 
@@ -129,6 +131,7 @@ async function runOne(
   outDir: string,
   env: { email: string; password: string },
   opts: Required<Pick<RunChecksOptions, "timeoutMs" | "cwd" | "spawn">>,
+  attempt = 1,
 ): Promise<CheckResult> {
   const dest = path.resolve(outDir, ruleId);
   await rm(dest, { recursive: true, force: true });
@@ -146,8 +149,8 @@ async function runOne(
       env: {
         ...process.env,
         APP_URL: appUrl,
-        // One account per check: a second check must not find the first one's account already registered.
-        TEST_EMAIL: env.email.replace("@", `.${ruleId.toLowerCase()}@`),
+        // One account per check and per attempt: a later one must not find an earlier account already registered.
+        TEST_EMAIL: env.email.replace("@", `.${ruleId.toLowerCase()}${attempt > 1 ? `.${attempt}` : ""}@`),
         TEST_PASSWORD: env.password,
         CHECK_OUT_DIR: dest,
       },
@@ -171,6 +174,14 @@ async function runOne(
   } else if (exit.code === 0 || exit.code === 1) {
     outcome = exit.code === 0 ? "pass" : "fail";
     reason = trace ? traceReason(trace, exit.code === 0) : outcome === "pass" ? "The check passed." : "The check failed.";
+    // "Could not tell" and "ran out of time" are not findings against the app.
+    if (outcome === "fail" && /^ASSERTION_INCONCLUSIVE\b/.test(reason)) {
+      outcome = "not_checked";
+      reason = `The check could not tell: ${reason.replace(/^ASSERTION_INCONCLUSIVE:\s*/, "")}`;
+    } else if (outcome === "fail" && /^(?:TEST|STEP)_TIMEOUT\b/.test(reason)) {
+      outcome = "not_checked";
+      reason = "The check ran out of time before it reached a result.";
+    }
   } else {
     outcome = "not_checked";
     const detail = trace ? traceReason(trace, false) : exit.error ?? lastLine(exit.output);
@@ -202,6 +213,10 @@ export async function runChecks(
     let result: CheckResult;
     try {
       result = await runOne(ruleId, appUrl, outDir, env, opts);
+      // A slow model answer or a page caught mid-load says nothing about the app: try once more.
+      if (result.outcome === "not_checked" && RETRY_WORTHWHILE.test(result.reason)) {
+        result = await runOne(ruleId, appUrl, outDir, env, opts, 2);
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       result = { ruleId, outcome: "not_checked", reason: `The check crashed: ${message}`, steps: [], screenshots: [] };

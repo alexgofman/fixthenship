@@ -39,6 +39,20 @@ function readScreen(): Screen {
   return { url: location.href.split("#")[0], html: `${html.length}:${hash}`, scroll: Math.round(window.scrollY) };
 }
 
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/** Reads the page, waiting out a page load that is still in progress. */
+async function whenLoaded<T>(read: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await read();
+    } catch (error) {
+      if (attempt >= 3 || !/context was destroyed|navigation/i.test(String(error))) throw error;
+      await sleep(1_000);
+    }
+  }
+}
+
 const key = (c: Control) => `${c.kind}|${c.label}|${c.href.split("#")[0]}`;
 const name = (c: Control) => `"${(c.label || c.href || c.kind).replace(/[.!?"]/g, "")}"`;
 
@@ -98,15 +112,16 @@ test("no dead buttons or broken links", async ({ app, browser }) => {
         console.log(`Could not press ${name(control)}, so it was not judged.`);
         continue;
       }
-      await browser.evaluate((ms: number) => new Promise<boolean>((r) => setTimeout(() => r(true), ms)), SETTLE_MS);
+      // Wait here, not inside the page: a press that loads a new page throws away the page's own timers.
+      await sleep(SETTLE_MS);
 
       if (browser.tabs().length > tabs) {
         for (const tab of browser.tabs().slice(tabs)) if (!tab.isClosed()) await tab.close();
         continue;
       }
-      const after = await browser.evaluate(readScreen);
+      const after = await whenLoaded(() => browser.evaluate(readScreen));
       if (after.url !== before.url) {
-        const text = await browser.evaluate(() => `${document.title}\n${document.body.innerText}`.trim());
+        const text = await whenLoaded(() => browser.evaluate(() => `${document.title}\n${document.body.innerText}`.trim()));
         if (text.length <= ERROR_PAGE_MAX_CHARS && ERROR_PAGE.test(text)) {
           problems.push(`${name(control)} leads to an error or not found page`);
         }
