@@ -1,36 +1,126 @@
 {
   "groups": [
     {
-      "title": "Your App Store listing",
+      "title": "Reviewer access and the iPhone build",
       "items": [
         {
-          "text": "Check that every screenshot shows the real app on that device size. iPad screenshots must come from an iPad, not a stretched iPhone screenshot.",
-          "why": "Screenshots that do not show the app in use on that device are a common rejection.",
+          "text": "Sign in with the demo account in App Review Information. Check it will not expire, and your contact details are current.",
+          "why": "A reviewer who cannot sign in, or cannot reach you with a question, cannot finish testing the app.",
+          "guideline": "2.1(a)"
+        },
+        {
+          "text": "Check your hosting, database and AI credits will not pause or run out while Apple reviews the app.",
+          "why": "If the server is asleep or out of credit when the reviewer opens the app, it looks broken or unfinished.",
+          "guideline": "2.1(a)"
+        },
+        {
+          "text": "Install your TestFlight build on an iPhone, and an iPad if you can. Try every login button and every main screen.",
+          "why": "A crash, a login that fails or a broken layout that exists only in the iPhone build is invisible to FixThenShip's web test.",
+          "guideline": "2.1(a)"
+        },
+        {
+          "text": "Check your review notes give steps to each main feature, say where purchases are, and explain what the reviewer cannot try.",
+          "why": "Apple says generic descriptions will be rejected, and a feature the reviewer cannot find may be treated as missing.",
+          "guideline": "2.3.1(a)"
+        },
+        {
+          "text": "Check the iPhone build does something your website in Safari cannot, and name it in the review notes.",
+          "why": "Apple can reject an app it sees as only a repackaged website, and FixThenShip cannot judge that for you.",
+          "guideline": "4.2"
+        }
+      ]
+    },
+    {
+      "title": "Privacy",
+      "items": [
+        {
+          "text": "Open the Privacy Policy URL in App Store Connect. It must load and say what you collect and who receives it.",
+          "why": "Apple requires this link in App Store Connect as well as in the app, and the policy must cover any outside service, including AI, that receives user data.",
+          "guideline": "5.1.1(i)"
+        },
+        {
+          "text": "Read your App Privacy answers in App Store Connect. They must cover everything the app, its analytics and ad tools collect.",
+          "why": "Apple treats these answers as part of the listing, so leaving out data the app really collects counts as inaccurate information.",
+          "guideline": "2.3"
+        },
+        {
+          "text": "On the iPhone build, trigger each permission request: camera, location, tracking if you use ad tools. Each must say plainly why.",
+          "why": "This text lives only in the iPhone build; Apple lists unclear permission requests as a common problem and requires its own prompt before tracking.",
+          "guideline": "5.1.1(ii)"
+        }
+      ]
+    },
+    {
+      "title": "Screenshots and store listing",
+      "items": [
+        {
+          "text": "Look at your screenshots. Most must show the app in use as it looks today, not a splash or login screen.",
+          "why": "Screenshots that show only a splash or login page, or an old design, do not meet Apple's rule that they show the app in use.",
           "guideline": "2.3.3"
         },
         {
-          "text": "Put your privacy policy link in App Store Connect as well as inside the app.",
-          "why": "Apple requires both.",
-          "guideline": "5.1.1(i)"
+          "text": "Check your iPad screenshots were taken on an iPad or the iPad simulator, not resized or stretched from iPhone ones.",
+          "why": "Apple wants each device's screenshots to show the app in use on that device, and a founder was rejected for resized iPhone screenshots.",
+          "guideline": "2.3.3"
+        },
+        {
+          "text": "Read your description and screenshot captions. Remove any feature the app does not have yet, and say which ones cost extra.",
+          "why": "A listing that promises features the app lacks, or hides that a feature costs extra, counts as inaccurate.",
+          "guideline": "2.3"
+        },
+        {
+          "text": "Check the app name and subtitle contain no other brands' names such as 'GPT', no prices and no lists of keywords.",
+          "why": "Apple's rule bans packing the name or keywords with trademarks, popular app names or prices, so such a listing can be rejected.",
+          "guideline": "2.3.7"
+        },
+        {
+          "text": "Search your listing text and screenshots for 'Android', 'Google Play', other stores' logos or an Android status bar. Remove them.",
+          "why": "Apple does not allow the names, icons or pictures of other mobile platforms or app stores in a listing.",
+          "guideline": "2.3.10"
         }
       ]
     },
     {
-      "title": "For the reviewer",
+      "title": "Purchases and subscriptions (skip if the app sells nothing)",
       "items": [
         {
-          "text": "Give a demo account and password in the review notes if the app needs sign-in.",
-          "why": "A reviewer who cannot get in rejects the app as incomplete.",
-          "guideline": "2.1"
+          "text": "In App Store Connect, check the Paid Apps Agreement is active and every in-app purchase is added to this submission.",
+          "why": "Without an active agreement you cannot submit purchases, and purchases the reviewer cannot find or use count as an incomplete app.",
+          "guideline": "2.1(b)"
+        },
+        {
+          "text": "If you sell subscriptions, check your App Store listing links to your Terms of Use as well as your Privacy Policy.",
+          "why": "Apple's subscriptions page says both the app and its App Store listing must carry these links.",
+          "guideline": "3.1.2"
+        },
+        {
+          "text": "On the TestFlight build, tap Restore Purchases and check a purchase made with a test account comes back.",
+          "why": "A real restore only happens in the iPhone build, so FixThenShip cannot test it, and a broken one is a known rejection reason.",
+          "guideline": "3.1.1"
         }
       ]
     },
     {
-      "title": "Legal basics (not legal advice)",
+      "title": "Support, age rating and legal basics (reminders, not legal advice)",
       "items": [
         {
-          "text": "Have a privacy policy that says what you collect and why, and a way for people to ask for their data to be deleted.",
-          "why": "Privacy laws such as GDPR require it wherever you have users in Europe or the UK.",
+          "text": "Open the Support URL in App Store Connect. It must load and show a current way to contact you.",
+          "why": "Apple requires a support link with up-to-date contact details for every app, and FixThenShip cannot see the one in your listing.",
+          "guideline": "1.5"
+        },
+        {
+          "text": "Check your age rating answers in App Store Connect. They should match the app, including chat, user posts or mature themes.",
+          "why": "Apple asks for honest answers, and a rating that does not match what is in the app can lead to rejection.",
+          "guideline": "2.3.6"
+        },
+        {
+          "text": "Keep proof that you own or may use every brand name, image, font and icon in the app and listing.",
+          "why": "Apple does not allow other people's trademarks or copyrighted work without permission, and FixThenShip cannot tell who owns what.",
+          "guideline": "5.2.1"
+        },
+        {
+          "text": "In App Store Connect, check your build shows no 'Missing Compliance' warning. If it does, answer the encryption questions.",
+          "why": "Apple asks about encryption when you submit a version, and a build marked 'Missing Compliance' needs your answer before it can move on.",
           "guideline": ""
         }
       ]

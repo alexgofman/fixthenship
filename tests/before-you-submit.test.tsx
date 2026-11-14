@@ -4,7 +4,7 @@ import BeforeYouSubmit, { BEFORE_YOU_SUBMIT_LEAD, BEFORE_YOU_SUBMIT_TITLE, CHECK
 import ReadyReport from "../components/ReadyReport";
 import { loadExampleRun } from "../lib/store";
 
-const escape = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/'/g, "&#39;").replace(/</g, "&lt;");
+const escape = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/'/g, "&#x27;").replace(/</g, "&lt;");
 
 describe("BeforeYouSubmit", () => {
   const html = renderToStaticMarkup(<BeforeYouSubmit runId="run1" />);
