@@ -2,8 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { isValidRunId, loadRun } from "@/lib/store";
-import ReadyReport from "@/components/ReadyReport";
-import { runName } from "@/components/findingDisplay";
+import ReadyReport, { ReadyHead } from "@/components/ReadyReport";
 
 async function ReadyLoader({ runId }: { runId: string }) {
   if (!isValidRunId(runId)) notFound();
@@ -12,12 +11,7 @@ async function ReadyLoader({ runId }: { runId: string }) {
 
   return (
     <div className="run">
-      <div className="run-head">
-        <div>
-          <p className="eyebrow">Ready to submit · Run {run.id}</p>
-          <h1 className="run-title">{runName(run)}</h1>
-        </div>
-      </div>
+      <ReadyHead run={run} />
       {run.stage === "done" ? (
         <ReadyReport run={run} />
       ) : (

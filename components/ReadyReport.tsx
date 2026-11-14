@@ -5,7 +5,7 @@ import type { Evidence as EvidenceItem, Finding, FixSession, RuleId, Run } from 
 import BeforeYouSubmit from "./BeforeYouSubmit";
 import Evidence from "./Evidence";
 import StatePill from "./StatePill";
-import { displayFor, initialDisplay, repoName, runName } from "./findingDisplay";
+import { displayFor, hasOpenFindings, initialDisplay, repoName, runName } from "./findingDisplay";
 
 /** Per rule: the label and the place a reviewer can see the fix, for the App Review notes. */
 export const NOTE_LINES: Record<RuleId, [string, string]> = {
@@ -80,6 +80,32 @@ export function reviewNotes(run: Run): string {
     }
   }
   return lines.join("\n");
+}
+
+export const READY_LINE_OPEN =
+  "Fixed findings are verified. The ones marked Needs you are waiting for a step only you can take.";
+export const READY_LINE_DONE = "Everything we found is fixed and verified. Apple still makes the decision.";
+
+/** The label above the app's name and the line under it. */
+export function readyHeadline(run: Run): { label: string; line: string } {
+  const open = hasOpenFindings(run);
+  return {
+    label: `${open ? "What is left to do" : "Ready to submit"} · Run ${run.id}`,
+    line: open ? READY_LINE_OPEN : READY_LINE_DONE,
+  };
+}
+
+export function ReadyHead({ run }: { run: Run }) {
+  const { label, line } = readyHeadline(run);
+  return (
+    <div className="run-head">
+      <div>
+        <p className="eyebrow">{label}</p>
+        <h1 className="run-title">{runName(run)}</h1>
+        {run.stage === "done" && <p style={{ margin: "8px 0 0" }}>{line}</p>}
+      </div>
+    </div>
+  );
 }
 
 const PRE_STYLE: CSSProperties = {
@@ -170,22 +196,6 @@ export default function ReadyReport({ run }: { run: Run }) {
 
   return (
     <div className="ready">
-      <section className="board" aria-labelledby="ready-fixed">
-        <Head id="ready-fixed" title="Fixed and verified" n={s.fixed.length} />
-        {s.fixed.length === 0 ? (
-          <None />
-        ) : (
-          <div className="findings">
-            {s.fixed.map((f) => (
-              <article key={f.ruleId} className="finding finding-green">
-                <CardHead finding={f} />
-                <AfterFix finding={f} fix={fixFor(f)} run={run} />
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
-
       <section className="board" aria-labelledby="ready-needs">
         <Head id="ready-needs" title="Needs you" n={s.needsYou.length} />
         {s.needsYou.length === 0 ? (
@@ -207,6 +217,22 @@ export default function ReadyReport({ run }: { run: Run }) {
               </li>
             ))}
           </ul>
+        )}
+      </section>
+
+      <section className="board" aria-labelledby="ready-fixed">
+        <Head id="ready-fixed" title="Fixed and verified" n={s.fixed.length} />
+        {s.fixed.length === 0 ? (
+          <None />
+        ) : (
+          <div className="findings">
+            {s.fixed.map((f) => (
+              <article key={f.ruleId} className="finding finding-green">
+                <CardHead finding={f} />
+                <AfterFix finding={f} fix={fixFor(f)} run={run} />
+              </article>
+            ))}
+          </div>
         )}
       </section>
 
