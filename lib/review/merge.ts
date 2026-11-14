@@ -3,7 +3,8 @@ import type { CheckResult, Evidence, Finding } from "../types";
 
 /**
  * Folds one check result into the findings.
- * A scan finding is kept unless the app check fails, which makes it source "both".
+ * A scan finding is kept unless the app check fails, which makes it source "both". When the app check
+ * passes, the scan finding drops to a low-confidence risk that keeps the app's evidence against it.
  */
 export function applyCheckResult(findings: Finding[], result: CheckResult, evidence: Evidence[]): Finding[] {
   const index = findings.findIndex((f) => f.ruleId === result.ruleId);
@@ -24,8 +25,21 @@ export function applyCheckResult(findings: Finding[], result: CheckResult, evide
         }
       : appFinding(result, evidence, "fail", "medium");
   } else if (scan) {
-    if (result.outcome === "pass" || !scanFound) return findings;
-    next = { ...scan, detail: `${scan.detail} The app check could not run: ${result.reason}` };
+    if (!scanFound) return findings;
+    next =
+      result.outcome === "pass"
+        ? {
+            ...scan,
+            state: "risk",
+            confidence: "low",
+            detail: `${scan.detail} The app check passed on the live app: ${result.reason}`,
+            evidence: [...scan.evidence, ...evidence],
+          }
+        : {
+            ...scan,
+            detail: `${scan.detail} The app check could not run: ${result.reason}`,
+            evidence: [...scan.evidence, ...evidence],
+          };
   } else {
     next =
       result.outcome === "pass"

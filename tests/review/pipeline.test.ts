@@ -96,7 +96,8 @@ describe("reviewApp", () => {
     expect(byRule.R5).toMatchObject({ source: "both", state: "fail", confidence: "high" });
     expect(byRule.R5.evidence.map((e) => e.kind)).toEqual(["code", "screenshot", "log"]);
     expect(byRule.R6).toMatchObject({ source: "app", state: "not_checked", detail: "R6 reason." });
-    expect(byRule.R7).toEqual(scanFinding("R7", "risk"));
+    expect(byRule.R7).toMatchObject({ source: "code", state: "risk", confidence: "low" });
+    expect(byRule.R7.detail).toBe("The code shows a R7 risk. The app check passed on the live app: R7 reason.");
     expect(byRule.R8).toMatchObject({ source: "code", state: "risk" });
     expect(byRule.R8.detail).toContain("R8 reason.");
     expect(byRule.R10).toEqual(scanFinding("R10"));
@@ -146,6 +147,7 @@ describe("addRepo", () => {
       { ...scanFinding("R1", "pass"), source: "app", evidence: [], detail: "R1 loads." },
       { ...scanFinding("R5"), source: "app", evidence: [shot], detail: "No privacy link." },
       { ...scanFinding("R6", "not_checked"), source: "app", evidence: [], detail: "Sign-up failed." },
+      { ...scanFinding("R10", "pass"), source: "app", evidence: [], detail: "No badge on screen." },
     ];
     await saveRun(run);
 
@@ -165,7 +167,8 @@ describe("addRepo", () => {
     expect(byRule.R5.evidence.map((e) => e.kind)).toEqual(["code", "screenshot"]);
     expect(byRule.R6).toMatchObject({ source: "code", state: "fail" });
     expect(byRule.R6.detail).toContain("Sign-up failed.");
-    expect(byRule.R10).toEqual(scanFinding("R10"));
+    expect(byRule.R10).toMatchObject({ source: "code", state: "risk", confidence: "low" });
+    expect(byRule.R10.detail).toContain("The app check passed on the live app: No badge on screen.");
     expect(await loadRun(run.id)).toEqual(saved);
   });
 });
