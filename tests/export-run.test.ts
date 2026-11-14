@@ -1,12 +1,12 @@
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { loadExampleRun } from "../lib/store";
 import { NOTE_LINES, reviewNotes } from "../components/ReadyReport";
-import { reviewNotes as exportedNotes, renderRunHtml, SAVED_COPY_LINE } from "../scripts/export-run.mjs";
+import { reviewNotes as exportedNotes, HIDDEN_REVIEWER_EMAIL, redactReviewerEmails, renderRunHtml, SAVED_COPY_LINE } from "../scripts/export-run.mjs";
 import { PLAIN_WORDS } from "../lib/plainWords";
 import { BEFORE_YOU_SUBMIT_LEAD, BEFORE_YOU_SUBMIT_TITLE, CHECKLIST } from "../components/BeforeYouSubmit";
 import { rejectionSentence, summaryLine } from "../components/findingDisplay";
@@ -32,6 +32,46 @@ async function exportExample(env: Record<string, string> = {}) {
 }
 
 describe("export-run", () => {
+  it("hides the reviewer's sign-up address everywhere in the exported folder", async () => {
+    const address = "fts.reviewer.k3x9.2026@mail.example.com";
+    const example = await loadExampleRun();
+    const [first, ...rest] = example.findings;
+    const withAddress = {
+      ...example,
+      findings: [
+        {
+          ...first,
+          detail: `${first.detail} The reviewer signed up as ${address}.`,
+          evidence: [...first.evidence, { kind: "log", path: "traces/trace.md", caption: `Signed up as ${address}` }],
+        },
+        ...rest,
+      ],
+    };
+    const runJson = path.join(dir, "run.json");
+    await writeFile(runJson, JSON.stringify(withAddress));
+    const traces = path.join(dir, "runs", example.id, "traces");
+    await mkdir(traces, { recursive: true });
+    await writeFile(path.join(traces, "trace.md"), `# Trace\n\n1. Typed ${address} into Email.\n`);
+    const out = path.join(dir, "out");
+    await run(process.execPath, [SCRIPT, runJson, out], { env: { ...process.env, RUNS_DIR: path.join(dir, "runs") } });
+
+    const files = (await readdir(out, { recursive: true, withFileTypes: true })).filter((e) => e.isFile());
+    expect(files.map((e) => e.name).sort()).toEqual(["index.html", "trace.md"]);
+    let all = "";
+    for (const e of files) all += await readFile(path.join(e.parentPath, e.name), "utf8");
+    expect(all).not.toContain(address);
+    expect(all).not.toContain("fts.reviewer");
+    expect(await readFile(path.join(out, "traces", "trace.md"), "utf8")).toContain(`Typed ${HIDDEN_REVIEWER_EMAIL} into Email.`);
+    expect(all).toContain(`The reviewer signed up as ${HIDDEN_REVIEWER_EMAIL}.`);
+  });
+
+  it("hides only the reviewer's address shape", () => {
+    expect(redactReviewerEmails("fts.reviewer.a.b9@x.io and FTS.Reviewer.Q1@x.io, mailto:fts.reviewer.z%40x.io")).toBe(
+      `${HIDDEN_REVIEWER_EMAIL} and ${HIDDEN_REVIEWER_EMAIL}, mailto:${HIDDEN_REVIEWER_EMAIL}`,
+    );
+    expect(redactReviewerEmails("support@habit-tracker.example.com, fts.reviewer@x.io")).toBe("support@habit-tracker.example.com, fts.reviewer@x.io");
+  });
+
   it("writes an index.html with every finding title and no script tag", async () => {
     const example = await loadExampleRun();
     const { html } = await exportExample();

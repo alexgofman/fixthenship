@@ -403,10 +403,34 @@ ${fixed}\n${needs}\n${failing}\n${unchecked}\n${beforeYouSubmit()}\n${notes}
 <p class="refresh-note">FixThenShip predicts what a reviewer is likely to flag. Apple makes the decision.</p></section>`;
 }
 
+export const HIDDEN_REVIEWER_EMAIL = "reviewer-test-account@hidden.example";
+
+const REVIEWER_EMAIL = /fts\.reviewer\.[a-z0-9.]+(?:@|%40)[a-z0-9-]+(?:\.[a-z0-9-]+)+/gi;
+
+/** Hides the throwaway address the reviewer signed up with, so the saved copy is safe to publish. */
+export function redactReviewerEmails(text) {
+  return text.replace(REVIEWER_EMAIL, HIDDEN_REVIEWER_EMAIL);
+}
+
+/** Text files get the address hidden; images and other binary files are copied as they are. */
+async function copyRedacted(src, dest) {
+  const bytes = await readFile(src);
+  let text = null;
+  if (!bytes.includes(0)) {
+    try {
+      text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    } catch {
+      text = null;
+    }
+  }
+  if (text === null) await copyFile(src, dest);
+  else await writeFile(dest, redactReviewerEmails(text), "utf8");
+}
+
 /** The whole page as one HTML string; `copied` holds the evidence paths that exist next to it. */
 export function renderRunHtml(run, css, copied = new Set(), { brandMark = "", fontLinks = [] } = {}) {
   const name = runName(run);
-  return `<!doctype html>
+  return redactReviewerEmails(`<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -431,7 +455,7 @@ ${readyReport(run, copied)}
 <footer class="site-footer">FixThenShip describes likely review outcomes and risks. It is not affiliated with Apple. <span class="export-note">Exported ${esc(new Date().toISOString().slice(0, 10))}.</span></footer>
 </body>
 </html>
-`;
+`);
 }
 
 function runsDir() {
@@ -467,11 +491,11 @@ async function copyEvidence(run, outDir) {
       const rel = safeRelative(e.path);
       if (!rel || copied.has(rel)) continue;
       const src = path.resolve(runDir, rel);
-      const dest = path.resolve(outDir, rel);
+      const dest = path.resolve(outDir, redactReviewerEmails(rel));
       if (!src.startsWith(runDir + path.sep) || !dest.startsWith(outDir + path.sep)) continue;
       if (!(await isFile(src))) continue;
       await mkdir(path.dirname(dest), { recursive: true });
-      await copyFile(src, dest);
+      await copyRedacted(src, dest);
       copied.add(rel);
     }
   }
