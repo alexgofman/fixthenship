@@ -25,7 +25,7 @@ AI app builders made building an app easy. App Review is where people get stuck,
    - Looking for a support or contact page
    - Looking for the app builder's badge or default branding
 3. **You get the verdict.** About two to three minutes later you see, in plain words, what would likely get the app rejected, with a screenshot of each problem.
-4. **"Fix these for me".** This connects your GitHub repository and starts one Devin session per fixable finding. Each session opens one small pull request against a `store-ready` branch.
+4. **"Fix these for me".** This connects your GitHub repository and starts one Devin session per fixable finding. Each session opens one small pull request against a `store-ready-<run>` branch, one per review.
 5. **We check again.** We merge those pull requests, run the fixed app and repeat the checks. Every finding ends as fixed and verified, needs you, or still failing.
 
 ## Why you can trust the result
@@ -41,7 +41,7 @@ flowchart LR
   B --> C[Verdict]
   C --> D[One Devin session per finding]
   D --> E[Pull requests]
-  E --> F[store-ready branch]
+  E --> F["A store-ready-#lt;run#gt; branch, one per review"]
   F --> G[The fixed app, run locally]
   G --> H[The same checks again]
   H --> I[Final state per finding]
@@ -64,7 +64,7 @@ DEVIN_API_KEY=                  # starts and polls fix sessions
 DEVIN_ORG_ID=
 DEVIN_MODE=                     # optional Devin mode for fix sessions
 DEVIN_MAX_ACU=                  # optional limit per fix session (default 5)
-GITHUB_TOKEN=                   # reads the repository, its pull requests, and merges into store-ready
+GITHUB_TOKEN=                   # reads the repository, its pull requests, and merges into a `store-ready-<run>` branch, one per review
 TEST_EMAIL_DOMAIN=              # optional domain for test accounts (default mailinator.com)
 TEST_EMAIL=                     # optional fixed test account
 TEST_PASSWORD=
