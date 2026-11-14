@@ -28,14 +28,12 @@ export async function loadExampleRun(): Promise<Run> {
   return JSON.parse(await readFile(exampleRunPath(), "utf8")) as Run;
 }
 
-/** Copies the example run into the runs folder the first time it is needed. */
-async function ensureExampleRun(): Promise<void> {
-  const example = await loadExampleRun();
-  try {
-    await readFile(runFile(example.id));
-  } catch {
-    await saveRun(example);
-  }
+/** The sample review shipped in examples/. It opens at /runs/example but is not listed with the real reviews. */
+export const EXAMPLE_RUN_ID = "example";
+
+/** Copies the shipped example over the saved one each time, so it never goes stale. */
+async function refreshExampleRun(): Promise<void> {
+  await saveRun(await loadExampleRun());
 }
 
 const queues = new Map<string, Promise<unknown>>();
@@ -102,16 +100,20 @@ export async function createRun(repoUrl: string, appUrl: string): Promise<Run> {
 }
 
 export async function loadRun(runId: string): Promise<Run> {
-  await ensureExampleRun();
+  if (runId === EXAMPLE_RUN_ID) await refreshExampleRun();
   return JSON.parse(await readFile(runFile(runId), "utf8")) as Run;
 }
 
 export async function listRuns(): Promise<Run[]> {
-  await ensureExampleRun();
-  const entries = await readdir(/*turbopackIgnore: true*/ runsDir(), { withFileTypes: true });
+  const entries = await readdir(/*turbopackIgnore: true*/ runsDir(), { withFileTypes: true }).catch(
+    (err: NodeJS.ErrnoException) => {
+      if (err.code === "ENOENT") return [];
+      throw err;
+    },
+  );
   const runs: Run[] = [];
   for (const entry of entries) {
-    if (!entry.isDirectory() || !isValidRunId(entry.name)) continue;
+    if (!entry.isDirectory() || !isValidRunId(entry.name) || entry.name === EXAMPLE_RUN_ID) continue;
     try {
       runs.push(JSON.parse(await readFile(runFile(entry.name), "utf8")) as Run);
     } catch {

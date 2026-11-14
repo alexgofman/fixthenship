@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { RULES } from "../lib/rules";
-import { createRun, listRuns, loadExampleRun, loadRun, saveRun, updateRun } from "../lib/store";
+import { EXAMPLE_RUN_ID, createRun, listRuns, loadExampleRun, loadRun, saveRun, updateRun } from "../lib/store";
 import { FINAL_STATES, FINDING_STATES } from "../lib/types";
 
 let dir: string;
@@ -36,14 +36,18 @@ describe("store", () => {
     expect(loaded).toEqual(run);
   });
 
-  it("lists runs newest first, including the example run", async () => {
+  it("lists runs newest first, without the example run", async () => {
     const first = await createRun("https://github.com/a/one", "https://one.dev");
     await new Promise((r) => setTimeout(r, 5));
     const second = await createRun("https://github.com/a/two", "https://two.dev");
+    await loadRun(EXAMPLE_RUN_ID);
 
-    const ids = (await listRuns()).map((r) => r.id);
-    expect(ids.slice(0, 2)).toEqual([second.id, first.id]);
-    expect(ids).toContain((await loadExampleRun()).id);
+    expect((await listRuns()).map((r) => r.id)).toEqual([second.id, first.id]);
+  });
+
+  it("lists nothing before the runs folder exists", async () => {
+    process.env.RUNS_DIR = path.join(dir, "missing");
+    expect(await listRuns()).toEqual([]);
   });
 
   it("applies concurrent updates of one run one after another, so none is lost", async () => {
@@ -113,6 +117,15 @@ describe("store", () => {
 });
 
 describe("example run", () => {
+  it("opens at its id and is rewritten from the shipped file, so a stale copy is replaced", async () => {
+    const shipped = await loadExampleRun();
+    expect(shipped.id).toBe(EXAMPLE_RUN_ID);
+    await saveRun({ ...shipped, stage: "failed", error: "stale copy" });
+
+    expect(await loadRun(EXAMPLE_RUN_ID)).toEqual(shipped);
+    expect(JSON.parse(await readFile(path.join(dir, EXAMPLE_RUN_ID, "run.json"), "utf8"))).toEqual(shipped);
+  });
+
   it("has eight findings covering every state and finalState", async () => {
     const example = await loadExampleRun();
     expect(example.findings).toHaveLength(8);
