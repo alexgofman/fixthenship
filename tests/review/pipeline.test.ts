@@ -47,6 +47,7 @@ describe("reviewApp", () => {
   });
 
   it("merges scan findings with check results per rule", async () => {
+    const outcomesSeen = { R1: "pass", R2: "fail", R5: "fail", R6: "not_checked", R7: "pass", R8: "not_checked" };
     const run = await createRun("https://github.com/o/r", "https://app.test");
     const seen: string[] = [];
     const runChecks: ReviewDeps["runChecks"] = async (appUrl, outDir, ruleIds, options) => {
@@ -83,6 +84,7 @@ describe("reviewApp", () => {
 
     const saved = await loadRun(run.id);
     expect(saved.stage).toBe("reviewed");
+    expect(saved.checked).toEqual(outcomesSeen);
     expect(seen).toEqual(["R1:5", "R2:6", "R5:6", "R6:7", "R7:7", "R8:7"]);
     const byRule = Object.fromEntries(saved.findings.map((f) => [f.ruleId, f]));
     expect(saved.findings.map((f) => f.ruleId)).toEqual(["R1", "R2", "R5", "R6", "R7", "R8", "R10"]);

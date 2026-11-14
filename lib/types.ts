@@ -105,4 +105,6 @@ export type Run = {
   findings: Finding[];
   fixes: FixSession[];
   error: string;
+  /** What each app check of the current review answered, for the live progress list. */
+  checked?: Partial<Record<RuleId, CheckOutcome>>;
 };

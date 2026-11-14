@@ -156,6 +156,7 @@ export async function reviewApp(runId: string, overrides: Partial<ReviewDeps> = 
 
     run.stage = "scanning";
     run.error = "";
+    run.checked = {};
     await saveRun(run);
 
     // Without a repository the review uses the app only. A repository that cannot be opened (private or
@@ -188,6 +189,7 @@ export async function reviewApp(runId: string, overrides: Partial<ReviewDeps> = 
       onResult: async (result) => {
         const evidence = await checkEvidence(result, runDir, outDir);
         current.findings = applyCheckResult(current.findings, result, evidence).sort(byRule);
+        current.checked = { ...current.checked, [result.ruleId]: result.outcome };
         await saveRun(current);
       },
     });

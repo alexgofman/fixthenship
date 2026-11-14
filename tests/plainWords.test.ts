@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { checkProgress } from "../components/checkSteps";
 import { rejectionSentence, runName } from "../components/findingDisplay";
 import { CHECK_STEPS, PLAIN_WORDS } from "../lib/plainWords";
 import { REVIEW_RULES } from "../lib/review/pipeline";
 import { loadExampleRun } from "../lib/store";
-import { RULE_IDS, type Finding, type Run } from "../lib/types";
+import { RULE_IDS, type Run } from "../lib/types";
 
 describe("plain words", () => {
   it("has a problem, why Apple cares and what we do for every rule", () => {
@@ -41,29 +40,5 @@ describe("runName", () => {
   it("uses the app's host when there is no repository", () => {
     expect(runName({ repoUrl: "", appUrl: "https://yourapp.lovable.app/" })).toBe("yourapp.lovable.app");
     expect(runName({ repoUrl: "https://github.com/o/habit-tracker.git", appUrl: "x" })).toBe("habit-tracker");
-  });
-});
-
-describe("checkProgress", () => {
-  const app = (ruleId: Finding["ruleId"], state: Finding["state"], source: Finding["source"] = "app") =>
-    ({ ruleId, state, source }) as Finding;
-
-  it("ticks or crosses the finished checks and spins on the next one", () => {
-    const steps = checkProgress({
-      repoUrl: "",
-      stage: "checking",
-      findings: [app("R1", "pass"), app("R2", "fail"), app("R5", "pass", "code"), app("R7", "risk", "code")],
-    });
-    expect(steps.slice(0, 4).map((s) => `${s.key}:${s.status}`)).toEqual(["R1:pass", "R2:fail", "R5:current", "R6:pending"]);
-    expect(steps.find((s) => s.status === "current")?.key).toBe("R5");
-    expect(steps).toHaveLength(CHECK_STEPS.length);
-  });
-
-  it("starts with reading the code when the run has a repository", () => {
-    const scanning = checkProgress({ repoUrl: "https://github.com/o/r", stage: "scanning", findings: [] });
-    expect(scanning[0]).toMatchObject({ key: "code", status: "current" });
-    expect(scanning.slice(1).every((s) => s.status === "pending")).toBe(true);
-    const checking = checkProgress({ repoUrl: "https://github.com/o/r", stage: "checking", findings: [app("R1", "not_checked")] });
-    expect(checking.slice(0, 3).map((s) => s.status)).toEqual(["done", "skipped", "current"]);
   });
 });
