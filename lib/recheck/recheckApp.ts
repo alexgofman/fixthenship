@@ -270,60 +270,120 @@ function scanFinds(scan: Finding[], ruleId: RuleId): boolean {
   return scan.some((f) => f.ruleId === ruleId && (f.state === "fail" || f.state === "risk"));
 }
 
-type Outcome = { scan: Finding[]; checks: CheckResult[]; evidence: Map<RuleId, Evidence[]> };
+type Outcome = { scan: Finding[]; checks: CheckResult[]; evidence: Map<RuleId, Evidence[]>; merged: RuleId[] };
+
+export const NOT_MERGED = "No fix was merged for this finding, so it is not counted as fixed.";
+export const BROKE_BY_FIXES = "This passed before the fixes and fails after them:";
+const COULD_NOT_RECHECK = "We could not re-check this:";
+
+function withoutStop(reason: string): string {
+  return reason.trim().replace(/[.!?\s]+$/, "");
+}
+
+/** A reason as the middle of a sentence: no final full stop, and a plain first word in lower case. */
+function clause(reason: string): string {
+  const text = withoutStop(reason);
+  return /^[A-Z][a-z]/.test(text) ? text[0].toLowerCase() + text.slice(1) : text;
+}
+
+export function couldNotRecheckStep(reason: string): string {
+  return `${COULD_NOT_RECHECK} ${clause(reason)}. Press Check again.`;
+}
+
+export function didNotStartStep(reason: string): string {
+  return `${COULD_NOT_RECHECK} the fixed app did not start (${withoutStop(reason)}). Press Check again.`;
+}
 
 /**
- * The final state of one finding that failed the first review. A rule with an app check needs that check to pass;
- * a finding the code scan made needs the scan to no longer find it. A finding neither could look at stays red.
+ * The final state of one finding that failed the first review. It can only end green (or NEVER_GREEN amber)
+ * when its fix was merged. A rule with an app check needs that check to pass; a finding the code scan made
+ * needs the scan to no longer find it. A check that could not run ends amber; a finding nothing could look at stays red.
  */
-export function finalFor(finding: Finding, outcome: Outcome): Pick<Finding, "finalState" | "humanStep"> {
+export function finalFor(finding: Finding, outcome: Outcome): Pick<Finding, "finalState" | "humanStep" | "detail"> {
+  const red = (detail = finding.detail) => ({ finalState: "red" as const, humanStep: finding.humanStep, detail });
+  if (!outcome.merged.includes(finding.ruleId)) return red(`${finding.detail} ${NOT_MERGED}`);
   const check = outcome.checks.find((c) => c.ruleId === finding.ruleId);
   const hasCheck = REVIEW_RULES.includes(finding.ruleId);
   const looked = hasCheck || finding.source !== "app";
-  const passes =
-    looked && (!hasCheck || check?.outcome === "pass") && !scanFinds(outcome.scan, finding.ruleId);
-  if (!passes) return { finalState: "red", humanStep: finding.humanStep };
+  if (!looked || scanFinds(outcome.scan, finding.ruleId) || (hasCheck && check?.outcome === "fail")) return red();
+  if (hasCheck && check?.outcome !== "pass") {
+    const reason = check?.reason ?? "the check did not report a result";
+    return { finalState: "amber", humanStep: couldNotRecheckStep(reason), detail: finding.detail };
+  }
   const step = NEVER_GREEN[finding.ruleId];
-  return step ? { finalState: "amber", humanStep: step } : { finalState: "green", humanStep: "" };
+  return step
+    ? { finalState: "amber", humanStep: step, detail: finding.detail }
+    : { finalState: "green", humanStep: "", detail: finding.detail };
 }
 
 function isUnfixedFailure(f: Finding): boolean {
   return f.state === "fail" && f.finalState !== "amber";
 }
 
+function withAfterEvidence(f: Finding, outcome: Outcome): Evidence[] {
+  const extra = outcome.evidence.get(f.ruleId) ?? [];
+  return [...f.evidence.filter((e) => !e.caption.startsWith(AFTER_PREFIX)), ...extra];
+}
+
 function applyOutcome(run: Run, outcome: Outcome): void {
   run.findings = run.findings.map((f) => {
+    if (f.state === "pass") {
+      // A fix that breaks a rule that passed before must show.
+      const check = outcome.checks.find((c) => c.ruleId === f.ruleId);
+      if (check?.outcome !== "fail") return f;
+      const detail = `${f.detail} ${BROKE_BY_FIXES} ${check.reason}`;
+      return { ...f, evidence: withAfterEvidence(f, outcome), finalState: "red", detail };
+    }
     if (f.state !== "fail") return f;
-    const extra = outcome.evidence.get(f.ruleId) ?? [];
-    const evidence = [...f.evidence.filter((e) => !e.caption.startsWith(AFTER_PREFIX)), ...extra];
+    const evidence = withAfterEvidence(f, outcome);
     if (f.finalState === "amber") return { ...f, evidence };
     return { ...f, evidence, ...finalFor(f, outcome) };
   });
 }
 
-function markAllRed(run: Run, message: string): void {
-  run.findings = run.findings.map((f) =>
-    isUnfixedFailure(f) ? { ...f, finalState: "red", detail: `${f.detail} ${message}` } : f,
-  );
+/**
+ * When the fixed app could not be re-checked: a failure whose fix was merged ends amber with `step`;
+ * one with nothing merged stays red. `merged` is null when the merge itself did not finish.
+ */
+function markNotRechecked(run: Run, step: string, merged: RuleId[] | null): void {
+  run.findings = run.findings.map((f) => {
+    if (!isUnfixedFailure(f)) return f;
+    if (merged && !merged.includes(f.ruleId)) return { ...f, finalState: "red", detail: `${f.detail} ${NOT_MERGED}` };
+    return { ...f, finalState: "amber", humanStep: step };
+  });
 }
 
 const START_FAILED = "The fixed app could not be started for the re-check:";
 const NOT_FINISHED = "The re-check could not finish:";
 const RECHECK_STEP = /^Merge this pull request by hand: /;
 
+function cutAt(detail: string, markers: string[]): string {
+  for (const marker of markers) {
+    const at = detail.indexOf(` ${marker}`);
+    if (at >= 0) detail = detail.slice(0, at);
+  }
+  return detail;
+}
+
 /** Clears what an earlier re-check wrote, so running it again starts from the first review. */
 function resetRecheck(run: Run): void {
   run.findings = run.findings.map((f) => {
+    if (f.state === "pass") {
+      if (f.finalState !== "red") return f;
+      return {
+        ...f,
+        finalState: "",
+        detail: cutAt(f.detail, [BROKE_BY_FIXES]),
+        evidence: f.evidence.filter((e) => !e.caption.startsWith(AFTER_PREFIX)),
+      };
+    }
     if (f.state !== "fail") return f;
     const ours =
       RECHECK_STEP.test(f.humanStep) ||
       f.humanStep === OTHER_REPO_STEP ||
+      f.humanStep.startsWith(COULD_NOT_RECHECK) ||
       Object.values(NEVER_GREEN).includes(f.humanStep);
-    let detail = f.detail;
-    for (const marker of [START_FAILED, NOT_FINISHED]) {
-      const at = detail.indexOf(` ${marker}`);
-      if (at >= 0) detail = detail.slice(0, at);
-    }
+    const detail = cutAt(f.detail, [START_FAILED, NOT_FINISHED, NOT_MERGED]);
     return { ...f, detail, finalState: "", humanStep: ours ? "" : f.humanStep };
   });
 }
@@ -341,7 +401,7 @@ function withPort<T>(task: () => Promise<T>): Promise<T> {
 
 /**
  * Merges the fixes into the run's own branch, runs the fixed app locally on port 4010 and sets every
- * first-review failure's finalState. Never throws; the stage always ends "done".
+ * first-review failure's finalState, and red on a first-review pass the fixes broke. Never throws; the stage always ends "done".
  *
  * This installs and runs the reviewed repository's code on this machine with a stripped environment.
  * That is not a sandbox: it is meant for apps you own. In production run it inside an isolated
@@ -365,9 +425,11 @@ export async function recheckApp(runId: string, overrides: Partial<RecheckDeps> 
   }
 
   let outcome: Outcome | null = null;
-  let failure = "";
+  let merged: RuleId[] | null = null;
+  let failureStep = "";
   try {
-    await deps.mergeFixes(runId);
+    merged = (await deps.mergeFixes(runId)).merged;
+    const mergedRules = merged;
     outcome = await withPort(async () => {
       const app: StartedApp = { children: [] };
       let home = "";
@@ -388,24 +450,21 @@ export async function recheckApp(runId: string, overrides: Partial<RecheckDeps> 
         });
         const evidence = new Map<RuleId, Evidence[]>();
         for (const check of checks) evidence.set(check.ruleId, await afterEvidence(check, runDir, outDir));
-        return { scan, checks, evidence };
+        return { scan, checks, evidence, merged: mergedRules };
       } finally {
         await stopApp(app, deps);
         if (home) await rm(home, { recursive: true, force: true }).catch(() => {});
       }
     });
   } catch (err) {
-    failure =
-      err instanceof StartError
-        ? `${START_FAILED} ${err.message}`
-        : `${NOT_FINISHED} ${errorMessage(err)}`;
-    console.error(`recheck ${runId}: ${failure}`);
+    failureStep = err instanceof StartError ? didNotStartStep(err.message) : couldNotRecheckStep(errorMessage(err));
+    console.error(`recheck ${runId}: ${failureStep}`);
   }
 
   try {
     const latest = await loadRun(runId);
     if (outcome) applyOutcome(latest, outcome);
-    else markAllRed(latest, failure);
+    else markNotRechecked(latest, failureStep, merged);
     latest.stage = "done";
     await saveRun(latest);
   } catch (err) {

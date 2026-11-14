@@ -173,6 +173,11 @@ function checksWith(outcomes: Partial<Record<RuleId, CheckResult["outcome"]>> = 
   };
 }
 
+/** A mergeFixes that reports `merged` as merged, without GitHub. */
+function mergedOnly(...merged: RuleId[]): RecheckDeps["mergeFixes"] {
+  return async () => ({ merged, skipped: [] });
+}
+
 function byRule(run: Run): Record<string, Finding> {
   return Object.fromEntries(run.findings.map((f) => [f.ruleId, f]));
 }
@@ -256,7 +261,7 @@ describe("recheckApp", () => {
     await makeRun([finding("R5"), finding("R1", "pass", "app")]);
     const h = harness();
 
-    await recheckApp("run1", { ...h.deps, runChecks: checksWith() });
+    await recheckApp("run1", { ...h.deps, mergeFixes: mergedOnly("R5"), runChecks: checksWith() });
 
     const saved = await loadRun("run1");
     expect(saved.stage).toBe("done");
@@ -277,7 +282,7 @@ describe("recheckApp", () => {
     await makeRun([finding("R7"), finding("R8")]);
     const h = harness();
 
-    await recheckApp("run1", { ...h.deps, runChecks: checksWith() });
+    await recheckApp("run1", { ...h.deps, mergeFixes: mergedOnly("R7", "R8"), runChecks: checksWith() });
 
     const saved = byRule(await loadRun("run1"));
     expect(saved.R7).toMatchObject({ finalState: "amber", humanStep: "Add your Apple developer keys to finish Sign in with Apple" });
@@ -308,21 +313,109 @@ describe("recheckApp", () => {
   });
 
   it("ends red when the check still fails, the scan still finds it, or nothing checked it", async () => {
-    await makeRun([finding("R2"), finding("R5"), finding("R6"), finding("R13", "fail", "app")]);
+    await makeRun([finding("R2"), finding("R5"), finding("R13", "fail", "app")]);
     const h = harness();
 
     await recheckApp("run1", {
       ...h.deps,
+      mergeFixes: mergedOnly("R2", "R5", "R13"),
       scan: async () => [finding("R5", "fail", "code")],
-      runChecks: checksWith({ R2: "fail", R6: "not_checked" }),
+      runChecks: checksWith({ R2: "fail" }),
     });
 
     const saved = byRule(await loadRun("run1"));
     expect(saved.R2.finalState).toBe("red");
+    expect(saved.R2.detail).toBe("Detail R2.");
     expect(saved.R2.evidence.at(-1)?.caption).toBe("After the fix: steps of the R2 check (fail): R2 reason.");
     expect(saved.R5.finalState).toBe("red");
-    expect(saved.R6.finalState).toBe("red");
     expect(saved.R13.finalState).toBe("red");
+  });
+
+  it("is never green when no fix was merged for the finding, even if the check passes", async () => {
+    await makeRun(
+      [finding("R2"), finding("R5"), finding("R6"), finding("R7"), finding("R9")],
+      [fix("R2", 61, "error"), { ...fix("R5", 62), prUrl: "" }, fix("R9", 63)],
+    );
+    const h = harness();
+
+    await recheckApp("run1", {
+      ...h.deps,
+      mergeFixes: (runId) => mergeFixes(runId, { fetch: fakeGitHub().fetch }),
+      runChecks: checksWith({ R6: "not_checked" }),
+    });
+
+    const saved = byRule(await loadRun("run1"));
+    const notMerged = "No fix was merged for this finding, so it is not counted as fixed.";
+    // R2: the session failed. R5: no pull request. R6 and R7: no fix session at all. R7 is never green, but not amber either.
+    for (const rule of ["R2", "R5", "R6", "R7"]) {
+      expect(saved[rule]).toMatchObject({ finalState: "red", detail: `Detail ${rule}. ${notMerged}` });
+    }
+    expect(saved.R9).toMatchObject({ finalState: "green", detail: "Detail R9." });
+  });
+
+  it("ends amber, never red or green, when the re-check could not check a merged fix", async () => {
+    await makeRun([finding("R6"), finding("R7")]);
+    const h = harness();
+    const runChecks = checksWith({ R6: "not_checked", R7: "not_checked" });
+
+    await recheckApp("run1", {
+      ...h.deps,
+      mergeFixes: mergedOnly("R6", "R7"),
+      runChecks: async (...args) =>
+        (await runChecks(...args)).map((c) =>
+          c.ruleId === "R6" ? { ...c, reason: "The check could not run because the AI model did not answer usefully." } : c,
+        ),
+    });
+
+    const saved = byRule(await loadRun("run1"));
+    expect(saved.R6).toMatchObject({
+      finalState: "amber",
+      detail: "Detail R6.",
+      humanStep: "We could not re-check this: the check could not run because the AI model did not answer usefully. Press Check again.",
+    });
+    expect(saved.R7).toMatchObject({
+      finalState: "amber",
+      humanStep: "We could not re-check this: R7 reason. Press Check again.",
+    });
+  });
+
+  it("marks a first-review pass red when the fixes broke it, and leaves other passes as they were", async () => {
+    await makeRun([finding("R2"), finding("R1", "pass", "app"), finding("R3", "pass"), finding("R5", "pass")]);
+    const h = harness();
+
+    await recheckApp("run1", {
+      ...h.deps,
+      mergeFixes: mergedOnly("R2"),
+      runChecks: checksWith({ R1: "fail", R5: "not_checked" }),
+    });
+
+    const saved = byRule(await loadRun("run1"));
+    expect(saved.R2.finalState).toBe("green");
+    expect(saved.R1).toMatchObject({
+      state: "pass",
+      finalState: "red",
+      detail: "Detail R1. This passed before the fixes and fails after them: R1 reason.",
+    });
+    expect(saved.R1.evidence.at(-1)?.caption).toBe("After the fix: steps of the R1 check (fail): R1 reason.");
+    expect(saved.R3).toEqual(finding("R3", "pass"));
+    expect(saved.R5).toEqual(finding("R5", "pass"));
+  });
+
+  it("starts a second re-check from the first review", async () => {
+    await makeRun([finding("R2"), finding("R6"), finding("R1", "pass", "app")]);
+    const h = harness();
+
+    await recheckApp("run1", { ...h.deps, mergeFixes: mergedOnly("R6"), runChecks: checksWith({ R1: "fail", R6: "not_checked" }) });
+    let saved = byRule(await loadRun("run1"));
+    expect(saved.R2.finalState).toBe("red");
+    expect(saved.R6.finalState).toBe("amber");
+    expect(saved.R1.finalState).toBe("red");
+
+    await recheckApp("run1", { ...h.deps, mergeFixes: mergedOnly("R2", "R6"), runChecks: checksWith() });
+    saved = byRule(await loadRun("run1"));
+    expect(saved.R2).toMatchObject({ finalState: "green", detail: "Detail R2." });
+    expect(saved.R6).toMatchObject({ finalState: "green", humanStep: "" });
+    expect(saved.R1).toEqual(finding("R1", "pass", "app"));
   });
 
   it("stops the app even when the checks throw", async () => {
@@ -331,6 +424,7 @@ describe("recheckApp", () => {
 
     await recheckApp("run1", {
       ...h.deps,
+      mergeFixes: mergedOnly("R2"),
       runChecks: async () => {
         throw new Error("browser crashed");
       },
@@ -342,12 +436,15 @@ describe("recheckApp", () => {
     ]);
     const saved = await loadRun("run1");
     expect(saved.stage).toBe("done");
-    expect(byRule(saved).R2.finalState).toBe("red");
-    expect(byRule(saved).R2.detail).toContain("browser crashed");
+    expect(byRule(saved).R2).toMatchObject({
+      finalState: "amber",
+      detail: "Detail R2.",
+      humanStep: "We could not re-check this: browser crashed. Press Check again.",
+    });
   });
 
-  it("falls back to PORT, then marks unfixed findings red when the app cannot start", async () => {
-    await makeRun([finding("R2"), finding("R5"), finding("R1", "pass", "app")], [fix("R5", 31)]);
+  it("falls back to PORT, then marks merged fixes amber and unmerged ones red when the app cannot start", async () => {
+    await makeRun([finding("R2"), finding("R5"), finding("R6"), finding("R1", "pass", "app")], [fix("R5", 31), fix("R6", 32)]);
     const h = harness({ crashOnStart: true });
     const checks = vi.fn();
 
@@ -365,9 +462,15 @@ describe("recheckApp", () => {
     expect(checks).not.toHaveBeenCalled();
     const saved = await loadRun("run1");
     expect(saved.stage).toBe("done");
-    const r2 = byRule(saved).R2;
-    expect(r2.finalState).toBe("red");
-    expect(r2.detail).toMatch(/^Detail R2\. The fixed app could not be started for the re-check: npm run dev exited with code 1/);
+    expect(byRule(saved).R2).toMatchObject({
+      finalState: "red",
+      detail: "Detail R2. No fix was merged for this finding, so it is not counted as fixed.",
+    });
+    const r6 = byRule(saved).R6;
+    expect(r6).toMatchObject({ finalState: "amber", detail: "Detail R6." });
+    expect(r6.humanStep).toMatch(
+      /^We could not re-check this: the fixed app did not start \(npm run dev exited with code 1: .*\)\. Press Check again\.$/,
+    );
     expect(byRule(saved).R5.finalState).toBe("amber");
     expect(byRule(saved).R1.finalState).toBe("");
   });
@@ -378,6 +481,7 @@ describe("recheckApp", () => {
 
     await recheckApp("run1", {
       ...h.deps,
+      mergeFixes: mergedOnly("R2"),
       clone: async (_url, branch) => {
         throw new Error(`Remote branch ${branch} not found`);
       },
@@ -385,9 +489,11 @@ describe("recheckApp", () => {
 
     const saved = await loadRun("run1");
     expect(saved.stage).toBe("done");
-    expect(byRule(saved).R2.detail).toBe(
-      "Detail R2. The fixed app could not be started for the re-check: Remote branch store-ready-run1 not found",
-    );
+    expect(byRule(saved).R2).toMatchObject({
+      finalState: "amber",
+      detail: "Detail R2.",
+      humanStep: "We could not re-check this: the fixed app did not start (Remote branch store-ready-run1 not found). Press Check again.",
+    });
     expect(h.spawned).toHaveLength(0);
   });
 
