@@ -6,7 +6,8 @@
     "dev": "next dev -p 3000",
     "build": "next build",
     "start": "next start",
-    "test": "vitest run"
+    "test": "vitest run",
+    "snapshot:guidelines": "node scripts/snapshot-guidelines.mjs"
   },
   "dependencies": {
     "next": "16.4.6",
