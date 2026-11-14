@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { Run } from "@/lib/types";
 import DevinBoard from "./DevinBoard";
@@ -36,6 +37,11 @@ export default function RunView({ initialRun }: { initialRun: Run }) {
           <h1 className="run-title">{repoName(run.repoUrl)}</h1>
         </div>
         <MainAction run={run} onUpdate={setRun} />
+        {run.stage === "done" && (
+          <Link href={`/runs/${run.id}/ready`} className="btn-primary" style={{ textDecoration: "none" }}>
+            Ready to submit →
+          </Link>
+        )}
       </div>
 
       <Timeline stage={run.stage} error={run.error} />
