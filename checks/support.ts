@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { isAgentError, secrets, type Agent } from "e2e";
@@ -12,7 +13,7 @@ export function markNotChecked(reason: string): void {
 }
 
 export function testEmail(): string {
-  return process.env.TEST_EMAIL || `fts.reviewer.${Date.now()}@${process.env.TEST_EMAIL_DOMAIN ?? "mailinator.com"}`;
+  return process.env.TEST_EMAIL || `fts.reviewer.${randomBytes(16).toString("hex")}@${process.env.TEST_EMAIL_DOMAIN ?? "mailinator.com"}`;
 }
 
 function explain(error: unknown): string {

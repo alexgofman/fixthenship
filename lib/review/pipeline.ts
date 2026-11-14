@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { execFile } from "node:child_process";
 import { access, mkdir, rm } from "node:fs/promises";
 import path from "node:path";
@@ -122,7 +123,9 @@ export async function reviewApp(runId: string, overrides: Partial<ReviewDeps> = 
 
     const current = run;
     await deps.runChecks(current.appUrl, outDir, REVIEW_RULES, {
-      testEmail: `fts.reviewer.${runId.replace(/[^a-z0-9]/gi, "").slice(0, 12)}@${process.env.TEST_EMAIL_DOMAIN ?? "mailinator.com"}`,
+      // Unguessable address. The default domain is a public inbox, acceptable only for demo apps with no real data;
+      // in production set TEST_EMAIL_DOMAIN to a mailbox you control.
+      testEmail: `fts.reviewer.${randomBytes(16).toString("hex")}@${process.env.TEST_EMAIL_DOMAIN ?? "mailinator.com"}`,
       onResult: async (result) => {
         const evidence = await checkEvidence(result, runDir, outDir);
         current.findings = applyCheckResult(current.findings, result, evidence).sort(byRule);

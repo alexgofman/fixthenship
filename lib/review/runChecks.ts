@@ -187,7 +187,7 @@ export async function runChecks(
   options: RunChecksOptions = {},
 ): Promise<CheckResult[]> {
   const env = {
-    email: options.testEmail ?? process.env.TEST_EMAIL ?? `fts.reviewer.${randomUUID().replace(/-/g, "").slice(0, 12)}@${process.env.TEST_EMAIL_DOMAIN ?? "mailinator.com"}`,
+    email: options.testEmail ?? process.env.TEST_EMAIL ?? `fts.reviewer.${randomUUID().replace(/-/g, "")}@${process.env.TEST_EMAIL_DOMAIN ?? "mailinator.com"}`,
     password: options.testPassword ?? process.env.TEST_PASSWORD ?? generatePassword(),
   };
   const opts = {
