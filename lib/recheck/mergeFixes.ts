@@ -1,4 +1,5 @@
 import { BASE_BRANCH } from "../fix/brief";
+import { parseRepoUrl, type RepoRef } from "../fix/github";
 import { errorMessage } from "../fix/status";
 import { loadRun, saveRun } from "../store";
 import type { RuleId } from "../types";
@@ -13,10 +14,28 @@ type PullRef = { owner: string; repo: string; number: number };
 
 type Pull = { state: string; merged: boolean; base: { ref: string }; head: { sha: string } };
 
-export function parsePullUrl(prUrl: string): PullRef {
-  const match = prUrl.trim().match(/github\.com\/([^/\s]+)\/([^/\s]+)\/pull\/(\d+)/i);
-  if (!match) throw new Error(`Not a GitHub pull request URL: ${prUrl}`);
+export const OTHER_REPO_STEP = "This pull request is not in the app's repository; it was not merged";
+
+/** A pull request link on github.com, or null for anything else. */
+export function parsePullUrl(prUrl: string): PullRef | null {
+  let url: URL;
+  try {
+    url = new URL(prUrl.trim());
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "https:" || url.hostname !== "github.com") return null;
+  const match = url.pathname.match(/^\/([^/]+)\/([^/]+)\/pull\/(\d+)\/?$/);
+  if (!match) return null;
   return { owner: match[1], repo: match[2], number: Number(match[3]) };
+}
+
+/** The pull request, only when it belongs to the run's own repository. */
+export function pullInRepo(prUrl: string, repo: RepoRef | null): PullRef | null {
+  const pull = parsePullUrl(prUrl);
+  if (!pull || !repo) return null;
+  const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+  return same(pull.owner, repo.owner) && same(pull.repo, repo.repo) ? pull : null;
 }
 
 export function handMergeStep(prUrl: string): string {
@@ -48,8 +67,7 @@ async function failure(res: Response, what: string): Promise<string> {
 }
 
 /** Merges one pull request into BASE_BRANCH. Returns null when merged, otherwise why it was refused. */
-async function mergeOne(deps: MergeDeps, prUrl: string, ruleId: RuleId): Promise<string | null> {
-  const { owner, repo, number } = parsePullUrl(prUrl);
+async function mergeOne(deps: MergeDeps, { owner, repo, number }: PullRef, ruleId: RuleId): Promise<string | null> {
   const base = `/repos/${owner}/${repo}/pulls/${number}`;
 
   const got = await request(deps, base);
@@ -81,12 +99,25 @@ export async function mergeFixes(runId: string, overrides: Partial<MergeDeps> = 
   const run = await loadRun(runId);
   const result: MergeResult = { merged: [], skipped: [] };
   const refused = new Map<RuleId, string>();
+  let repo: RepoRef | null = null;
+  try {
+    repo = parseRepoUrl(run.repoUrl);
+  } catch {
+    // Without a GitHub repository no pull request can belong to the run.
+  }
 
   for (const fix of run.fixes) {
     if (fix.status !== "finished" || !fix.prUrl) continue;
+    const pull = pullInRepo(fix.prUrl, repo);
+    if (!pull) {
+      console.error(`mergeFixes ${runId}: ${fix.ruleId} ${fix.prUrl} is not a pull request in ${run.repoUrl}`);
+      result.skipped.push(fix.ruleId);
+      refused.set(fix.ruleId, OTHER_REPO_STEP);
+      continue;
+    }
     let reason: string | null;
     try {
-      reason = await mergeOne(deps, fix.prUrl, fix.ruleId);
+      reason = await mergeOne(deps, pull, fix.ruleId);
     } catch (err) {
       reason = errorMessage(err);
     }
@@ -95,15 +126,15 @@ export async function mergeFixes(runId: string, overrides: Partial<MergeDeps> = 
     } else {
       console.error(`mergeFixes ${runId}: ${fix.ruleId} ${fix.prUrl}: ${reason}`);
       result.skipped.push(fix.ruleId);
-      refused.set(fix.ruleId, fix.prUrl);
+      refused.set(fix.ruleId, handMergeStep(fix.prUrl));
     }
   }
 
   if (refused.size) {
     const latest = await loadRun(runId);
     latest.findings = latest.findings.map((f) => {
-      const prUrl = refused.get(f.ruleId);
-      return prUrl ? { ...f, finalState: "amber", humanStep: handMergeStep(prUrl) } : f;
+      const step = refused.get(f.ruleId);
+      return step ? { ...f, finalState: "amber", humanStep: step } : f;
     });
     await saveRun(latest);
   }
