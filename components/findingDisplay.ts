@@ -98,6 +98,33 @@ export function summaryLine(run: Run): string {
   return parts.join(", ");
 }
 
+/**
+ * The sentence at the top of the letter. Failing findings are the reasons; fixable "yes" counts as
+ * "we can fix", "partly" as "one step from you".
+ */
+export function rejectionSentence(run: Run): string {
+  const failing = run.findings.filter((f) => f.state === "fail");
+  if (failing.length === 0) return "We found nothing that would likely get this app rejected.";
+  const canFix = failing.filter((f) => f.fixable === "yes").length;
+  const oneStep = failing.filter((f) => f.fixable === "partly").length;
+  const parts = [
+    `Apple would likely reject this app for ${plural(failing.length, "reason", "reasons")}.`,
+    `We can fix ${canFix} of them for you now.`,
+  ];
+  if (oneStep > 0) parts.push(`${oneStep} ${oneStep === 1 ? "needs" : "need"} one step from you.`);
+  return parts.join(" ");
+}
+
+/** Name for a run: the repository name, or the app's host when the run has no repository. */
+export function runName(run: Pick<Run, "repoUrl" | "appUrl">): string {
+  if (run.repoUrl) return repoName(run.repoUrl);
+  try {
+    return new URL(run.appUrl).hostname;
+  } catch {
+    return run.appUrl;
+  }
+}
+
 export function repoName(repoUrl: string): string {
   try {
     const parts = new URL(repoUrl).pathname.split("/").filter(Boolean);
