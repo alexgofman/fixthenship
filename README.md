@@ -68,6 +68,7 @@ From `lib/rules.ts`.
 - It covers about ten rules, not the whole App Review Guidelines.
 - It predicts what a reviewer is likely to flag. Apple makes the decision.
 - Test accounts use a public inbox (mailinator.com) by default, which is fine for demo apps only. Set `TEST_EMAIL_DOMAIN` to a domain whose mail you own for anything with real data.
+- The re-check installs and runs the reviewed app's code on this machine (with `--ignore-scripts` and a stripped environment). That is meant for apps you own; in production it must run inside an isolated sandbox (container or microVM) with no host secrets.
 
 ## How this was built
 

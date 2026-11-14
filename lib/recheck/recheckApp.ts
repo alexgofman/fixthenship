@@ -1,6 +1,13 @@
-import { execFile, spawn as nodeSpawn, type ChildProcess, type SpawnOptions } from "node:child_process";
+import {
+  execFile as nodeExecFile,
+  spawn as nodeSpawn,
+  type ChildProcess,
+  type ExecFileOptions,
+  type SpawnOptions,
+} from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { access, mkdir, rm } from "node:fs/promises";
+import { access, lstat, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { BASE_BRANCH } from "../fix/brief";
@@ -10,9 +17,9 @@ import { runChecks, type RunChecksOptions } from "../review/runChecks";
 import { scanRepo } from "../scan";
 import { loadRun, runsDir, saveRun } from "../store";
 import type { CheckResult, Evidence, Finding, RuleId, Run } from "../types";
-import { mergeFixes, type MergeResult } from "./mergeFixes";
+import { OTHER_REPO_STEP, mergeFixes, type MergeResult } from "./mergeFixes";
 
-const execFileAsync = promisify(execFile);
+const execFileAsync = promisify(nodeExecFile);
 
 export const RECHECK_PORT = 4010;
 export const RECHECK_URL = `http://localhost:${RECHECK_PORT}`;
@@ -25,12 +32,16 @@ export const NEVER_GREEN: Partial<Record<RuleId, string>> = {
   R8: "Selling inside the iPhone app needs in-app purchase; the outside checkout is now hidden there",
 };
 
+export const INSTALL_ARGS = ["install", "--ignore-scripts", "--no-audit", "--no-fund"];
+
 type SpawnFn = (command: string, args: string[], options: SpawnOptions) => ChildProcess;
+type ExecFn = (file: string, args: string[], options: ExecFileOptions) => Promise<unknown>;
 
 export type RecheckDeps = {
   mergeFixes: (runId: string) => Promise<MergeResult>;
   clone: (repoUrl: string, branch: string, dest: string) => Promise<void>;
-  install: (dir: string, env: NodeJS.ProcessEnv) => Promise<void>;
+  /** Runs a command to completion (npm install). */
+  execFile: ExecFn;
   spawn: SpawnFn;
   /** process.kill; a negative pid signals the whole process group. */
   kill: (pid: number, signal: NodeJS.Signals) => void;
@@ -52,9 +63,9 @@ async function gitClone(repoUrl: string, branch: string, dest: string): Promise<
   });
 }
 
-async function npmInstall(dir: string, env: NodeJS.ProcessEnv): Promise<void> {
+async function npmInstall(exec: ExecFn, dir: string, env: NodeJS.ProcessEnv): Promise<void> {
   try {
-    await execFileAsync("npm", ["install", "--no-audit", "--no-fund"], {
+    await exec("npm", INSTALL_ARGS, {
       cwd: dir,
       env,
       timeout: 10 * 60_000,
@@ -78,7 +89,7 @@ async function isUp(url: string): Promise<boolean> {
 const defaultDeps: RecheckDeps = {
   mergeFixes: (runId) => mergeFixes(runId),
   clone: gitClone,
-  install: npmInstall,
+  execFile: (file, args, options) => execFileAsync(file, args, options),
   spawn: nodeSpawn as SpawnFn,
   kill: (pid, signal) => process.kill(pid, signal),
   isUp,
@@ -99,16 +110,50 @@ function lastLines(output: string, n = 3): string {
     .slice(0, 500);
 }
 
-const SECRET_NAME = /TOKEN|SECRET|PASSWORD|API_KEY|PRIVATE_KEY|ACCESS_KEY|CREDENTIAL|^DEVIN_|^MODEL_/i;
-const HOST_NAME = /^(__NEXT|NEXT_|TURBOPACK|npm_package_|npm_lifecycle_|INIT_CWD$|NODE_ENV$)/;
+const ENV_FILES = [".env", ".env.local", ".env.development", ".env.development.local"];
+const PUBLIC_NAME = /^(VITE_|NEXT_PUBLIC_)[A-Za-z0-9_]*$/;
 
-/** Environment for the reviewed app: none of our secrets and none of our own Next.js or npm settings. */
-export function appEnv(): NodeJS.ProcessEnv {
-  const env: Record<string, string | undefined> = {};
-  for (const [key, value] of Object.entries(process.env)) {
-    if (!SECRET_NAME.test(key) && !HOST_NAME.test(key)) env[key] = value;
+/** Reads KEY=value lines of a .env file; quotes are removed and unquoted trailing comments dropped. */
+export function parseDotenv(text: string): Record<string, string> {
+  const vars: Record<string, string> = {};
+  for (const line of text.split(/\r?\n/)) {
+    const m = line.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=(.*)$/);
+    if (!m) continue;
+    const raw = m[2].trim();
+    const quoted = raw.match(/^(['"`])(.*?)\1(?:\s+#.*)?$/);
+    vars[m[1]] = quoted ? quoted[2] : raw.replace(/\s+#.*$/, "");
   }
-  return { ...env, NODE_ENV: "development", PORT: String(RECHECK_PORT), BROWSER: "none", CI: "true" };
+  return vars;
+}
+
+async function readRegularFile(file: string): Promise<string> {
+  try {
+    // A symlinked .env could point anywhere on this machine.
+    if (!(await lstat(file)).isFile()) return "";
+    return await readFile(file, "utf8");
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * The only environment the reviewed app's code gets: PATH, a fresh HOME, PORT, NODE_ENV and the public
+ * VITE_ / NEXT_PUBLIC_ variables from the repository's own .env files. Nothing from this process's
+ * environment (DEVIN_API_KEY, GITHUB_TOKEN, the model key) is passed through.
+ */
+export async function appEnv(repoDir: string, home: string): Promise<NodeJS.ProcessEnv> {
+  const publicVars: Record<string, string> = {};
+  for (const file of ENV_FILES) {
+    const vars = parseDotenv(await readRegularFile(path.join(repoDir, file)));
+    for (const [key, value] of Object.entries(vars)) if (PUBLIC_NAME.test(key)) publicVars[key] = value;
+  }
+  return {
+    ...publicVars,
+    PATH: process.env.PATH ?? "/usr/local/bin:/usr/bin:/bin",
+    HOME: home,
+    PORT: String(RECHECK_PORT),
+    NODE_ENV: "development",
+  };
 }
 
 type StartedApp = { children: ChildProcess[] };
@@ -266,7 +311,10 @@ const RECHECK_STEP = /^Merge this pull request by hand: /;
 function resetRecheck(run: Run): void {
   run.findings = run.findings.map((f) => {
     if (f.state !== "fail") return f;
-    const ours = RECHECK_STEP.test(f.humanStep) || Object.values(NEVER_GREEN).includes(f.humanStep);
+    const ours =
+      RECHECK_STEP.test(f.humanStep) ||
+      f.humanStep === OTHER_REPO_STEP ||
+      Object.values(NEVER_GREEN).includes(f.humanStep);
     let detail = f.detail;
     for (const marker of [START_FAILED, NOT_FINISHED]) {
       const at = detail.indexOf(` ${marker}`);
@@ -290,6 +338,10 @@ function withPort<T>(task: () => Promise<T>): Promise<T> {
 /**
  * Merges the fixes into store-ready, runs the fixed app locally on port 4010 and sets every
  * first-review failure's finalState. Never throws; the stage always ends "done".
+ *
+ * This installs and runs the reviewed repository's code on this machine with a stripped environment.
+ * That is not a sandbox: it is meant for apps you own. In production run it inside an isolated
+ * container or microVM with no host secrets.
  */
 export async function recheckApp(runId: string, overrides: Partial<RecheckDeps> = {}): Promise<void> {
   const deps = { ...defaultDeps, ...overrides };
@@ -314,12 +366,14 @@ export async function recheckApp(runId: string, overrides: Partial<RecheckDeps> 
     await deps.mergeFixes(runId);
     outcome = await withPort(async () => {
       const app: StartedApp = { children: [] };
+      let home = "";
       try {
         const run = await loadRun(runId);
-        const env = appEnv();
         try {
           await deps.clone(run.repoUrl, BASE_BRANCH, repoDir);
-          await deps.install(repoDir, env);
+          home = await mkdtemp(path.join(os.tmpdir(), "fts-recheck-home-"));
+          const env = await appEnv(repoDir, home);
+          await npmInstall(deps.execFile, repoDir, env);
           await startApp(repoDir, env, deps, app);
         } catch (err) {
           throw new StartError(errorMessage(err));
@@ -333,6 +387,7 @@ export async function recheckApp(runId: string, overrides: Partial<RecheckDeps> 
         return { scan, checks, evidence };
       } finally {
         await stopApp(app, deps);
+        if (home) await rm(home, { recursive: true, force: true }).catch(() => {});
       }
     });
   } catch (err) {
