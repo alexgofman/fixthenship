@@ -12,7 +12,7 @@ export function markNotChecked(reason: string): void {
 }
 
 export function testEmail(): string {
-  return process.env.TEST_EMAIL || `reviewer+${Date.now()}@example.com`;
+  return process.env.TEST_EMAIL || `fts.reviewer.${Date.now()}@${process.env.TEST_EMAIL_DOMAIN ?? "mailinator.com"}`;
 }
 
 function explain(error: unknown): string {

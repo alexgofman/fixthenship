@@ -51,7 +51,7 @@ describe("reviewApp", () => {
     const seen: string[] = [];
     const runChecks: ReviewDeps["runChecks"] = async (appUrl, outDir, ruleIds, options) => {
       expect(ruleIds).toEqual(REVIEW_RULES);
-      expect(options.testEmail).toBe(`reviewer+${run.id}@example.com`);
+      expect(options.testEmail).toMatch(/^fts\.reviewer\.[a-z0-9]+@mailinator\.com$/i);
       const outcomes: Record<string, CheckResult["outcome"]> = {
         R1: "pass", R2: "fail", R5: "fail", R6: "not_checked", R7: "pass", R8: "not_checked",
       };

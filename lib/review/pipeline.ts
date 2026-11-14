@@ -122,7 +122,7 @@ export async function reviewApp(runId: string, overrides: Partial<ReviewDeps> = 
 
     const current = run;
     await deps.runChecks(current.appUrl, outDir, REVIEW_RULES, {
-      testEmail: `reviewer+${runId}@example.com`,
+      testEmail: `fts.reviewer.${runId.replace(/[^a-z0-9]/gi, "").slice(0, 12)}@${process.env.TEST_EMAIL_DOMAIN ?? "mailinator.com"}`,
       onResult: async (result) => {
         const evidence = await checkEvidence(result, runDir, outDir);
         current.findings = applyCheckResult(current.findings, result, evidence).sort(byRule);
