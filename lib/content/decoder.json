@@ -1,0 +1,50 @@
+[
+  {
+    "guideline": "2.1",
+    "appleCallsIt": "Performance: App Completeness",
+    "plain": "The app must be finished and working when the reviewer opens it.",
+    "usuallyMeans": "The reviewer hit a crash, a blank screen, placeholder text, a dead button, or could not sign in.",
+    "whatToDo": "Open the app as a new user on a phone and press everything; give the reviewer a demo account.",
+    "ourCheck": "R1"
+  },
+  {
+    "guideline": "5.1.1(i)",
+    "appleCallsIt": "Legal: Privacy: Data Collection and Storage",
+    "plain": "The app needs a privacy policy that people can open from inside the app.",
+    "usuallyMeans": "The reviewer could not find a privacy policy link in the app.",
+    "whatToDo": "Add a privacy policy page and link it from the sign-up screen and the settings.",
+    "ourCheck": "R5"
+  },
+  {
+    "guideline": "5.1.1(v)",
+    "appleCallsIt": "Legal: Privacy: Account Sign-In",
+    "plain": "If people can create an account in the app, they must be able to delete it in the app.",
+    "usuallyMeans": "The reviewer created an account and found no way to delete it.",
+    "whatToDo": "Add a Delete account option in the settings that really deletes the account.",
+    "ourCheck": "R6"
+  },
+  {
+    "guideline": "4.8",
+    "appleCallsIt": "Design: Login Services",
+    "plain": "An app that offers sign-in with another company must also offer an equally private option, such as Sign in with Apple.",
+    "usuallyMeans": "The sign-in screen had Google or Facebook login and no Apple option.",
+    "whatToDo": "Add Sign in with Apple next to the other sign-in buttons.",
+    "ourCheck": "R7"
+  },
+  {
+    "guideline": "3.1.1",
+    "appleCallsIt": "Business: Payments: In-App Purchase",
+    "plain": "Digital goods and subscriptions used in the app must be sold through Apple's in-app purchase.",
+    "usuallyMeans": "The reviewer found a link or button that sells a paid plan through an outside checkout.",
+    "whatToDo": "Hide the outside checkout inside the iPhone app or add in-app purchase.",
+    "ourCheck": "R8"
+  },
+  {
+    "guideline": "2.3.3",
+    "appleCallsIt": "Performance: Accurate Metadata",
+    "plain": "Screenshots must show the app in use on that device.",
+    "usuallyMeans": "The screenshots were marketing images, or iPhone screenshots stretched to iPad size.",
+    "whatToDo": "Take real screenshots on each device size you list.",
+    "ourCheck": ""
+  }
+]
