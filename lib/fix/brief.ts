@@ -51,6 +51,10 @@ const RULE_EXTRA: Partial<Record<RuleId, string>> = {
     "Add the \"Sign in with Apple\" button next to the existing third-party login options, with configuration placeholders " +
     "(for example environment variables for the Apple Services ID, Team ID, Key ID and private key) and no real secrets. " +
     "State clearly in your summary that Apple keys are still needed before Sign in with Apple can work.",
+  R10:
+    "Remove builder branding that comes from the code: the page title, meta tags, social preview image, favicon and any footer text or link that names the builder. " +
+    "A floating \"Edit with …\" badge on the hosted site is added by the builder's hosting, not by this repository, so it cannot be removed here: " +
+    "do not try to hide it with CSS or scripts, and state clearly in your summary that the owner must switch it off in the builder's project settings.",
   R8:
     "Hide the purchase path (buttons, links and screens that lead to the outside checkout) when the app runs inside an iPhone wrapper, " +
     "and keep it unchanged on the web. State clearly in your summary that selling on iPhone needs in-app purchase.",

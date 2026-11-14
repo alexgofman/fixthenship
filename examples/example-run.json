@@ -94,9 +94,9 @@
       ],
       "confidence": "high",
       "state": "fail",
-      "fixable": "yes",
-      "finalState": "green",
-      "humanStep": ""
+      "fixable": "partly",
+      "finalState": "amber",
+      "humanStep": "Switch off the builder's badge in your app builder's project settings; its hosting adds the badge, not your code"
     },
     {
       "ruleId": "R11",

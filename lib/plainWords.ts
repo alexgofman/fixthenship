@@ -59,7 +59,8 @@ export const PLAIN_WORDS: Record<RuleId, PlainWords> = {
   R10: {
     problem: "Your app still shows the app builder's badge, name or default icon.",
     whyAppleCares: "Reviewers reject apps that look like an untouched template rather than a product of their own.",
-    whatWeDo: "We remove the builder's badge and default branding and use your app's own name.",
+    whatWeDo:
+      "We remove the builder's name and default branding from your code; you switch off the floating badge in your builder's settings.",
   },
   R11: {
     problem: "Your app sends data to tracking or AI services before people have agreed to it.",

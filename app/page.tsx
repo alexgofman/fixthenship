@@ -16,8 +16,9 @@ export default function Home() {
       <section className="hero">
         <h1 className="hero-title">Will Apple reject your app?</h1>
         <p className="hero-line">
-          Paste your app&apos;s link. We use it the way an App Store reviewer would and show you what would
-          likely get it rejected, in about two minutes.
+          Built an app with Lovable, Bolt, Replit or Base44? Paste its web link before you send it to Apple. We
+          use it the way an App Store reviewer would and show you what would likely get it rejected, in about three
+          minutes.
         </p>
       </section>
 

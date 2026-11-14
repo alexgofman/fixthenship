@@ -27,7 +27,7 @@ describe("plain words", () => {
 describe("rejectionSentence", () => {
   it("counts the example run", async () => {
     expect(rejectionSentence(await loadExampleRun())).toBe(
-      "Apple would likely reject this app for 5 reasons. We can fix 4 of them for you now. 1 needs one step from you.",
+      "Apple would likely reject this app for 5 reasons. We can fix 3 of them for you now. 2 need one step from you.",
     );
   });
 

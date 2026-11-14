@@ -26,10 +26,14 @@ export const RECHECK_URL = `http://localhost:${RECHECK_PORT}`;
 export const START_TIMEOUT_MS = 90_000;
 export const AFTER_PREFIX = "After the fix:";
 
-/** R7 and R8 always need the developer, even when the fix works. */
+/**
+ * R7, R8 and R10 always need the developer, even when the fix works. A builder's floating badge is added
+ * by the builder's hosting: the same code run anywhere else shows no badge, so the code cannot remove it.
+ */
 export const NEVER_GREEN: Partial<Record<RuleId, string>> = {
   R7: "Add your Apple developer keys to finish Sign in with Apple",
   R8: "Selling inside the iPhone app needs in-app purchase; the outside checkout is now hidden there",
+  R10: "Switch off the builder's badge in your app builder's project settings; its hosting adds the badge, not your code",
 };
 
 export const INSTALL_ARGS = ["install", "--ignore-scripts", "--no-audit", "--no-fund"];
