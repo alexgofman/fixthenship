@@ -321,6 +321,20 @@ describe("mergeFixes brings conflicting pull requests up to date through their s
     expect(saved.R5).toMatchObject({ finalState: "amber", humanStep: handMerge(42) });
   });
 
+  it("counts a pull request already merged into this run's branch, but not one merged into another branch", async () => {
+    await makeRun([fix("R2", 61), fix("R5", 62), fix("R6", 63)]);
+    const f = fakes({ 61: { merged: true }, 62: { merged: true, base: "main" }, 63: { merged: true, base: "store-ready" } });
+
+    const result = await mergeFixes("run1", f.deps);
+
+    expect(result).toEqual({ merged: ["R2"], skipped: ["R5", "R6"] });
+    expect(f.messages).toEqual([]);
+    expect(f.log).toEqual(["GET /pulls/61", "GET /pulls/62", "GET /pulls/63"]);
+    const saved = byRule(await loadRun("run1"));
+    expect(saved.R5).toMatchObject({ finalState: "amber", humanStep: handMerge(62) });
+    expect(saved.R6).toMatchObject({ finalState: "amber", humanStep: handMerge(63) });
+  });
+
   it("still refuses a pull request in another repository without messaging its session", async () => {
     await makeRun([{ ...fix("R2", 51), prUrl: "https://github.com/evil/app/pull/51" }, fix("R5", 52)]);
     const f = fakes({ 52: { refuse: 405 } }, resolvesOn(52, 5));

@@ -125,7 +125,9 @@ async function mergeOne(deps: MergeDeps, ref: PullRef, ruleId: RuleId, branch: s
     const got = await request(deps, base);
     if (!got.ok) return { reason: await failure(got, `GET ${base}`) };
     const pull = (await got.json()) as Pull;
-    if (pull.merged) return null;
+    if (pull.merged) {
+      return pull.base.ref === branch ? null : { reason: `The pull request was merged into ${pull.base.ref}, not ${branch}.` };
+    }
     if (pull.state !== "open") return { reason: "The pull request is closed." };
     if (pull.base.ref !== branch) return { reason: `The pull request targets ${pull.base.ref}, not ${branch}.` };
     const headRepo = pull.head.repo?.full_name ?? "";
