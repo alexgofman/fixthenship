@@ -63,6 +63,10 @@ export function cleanReason(text: string): string {
     .replace(/\s*\(e\.g\.,?\s*node n\d+[^)]*\)/g, "")
     .replace(/\s*\bnode n\d+:?/g, "")
     .replace(/\bPassed at [\w.]*\w[^.]*\.?/g, "Passed.")
+    // The judging model's own closing remark about its instructions means nothing to a reader.
+    .replace(/,?\s*(?:which\s+)?(?:violat(?:es|ing)|contradict(?:s|ing)) the (?:assertion|instruction|requirement)[^.]*\.?/gi, ".")
+    .replace(/\s*This contradicts the instruction[^.]*\./gi, "")
+    .replace(/\.{2,}/g, ".")
     .replace(/[ \t]{2,}/g, " ")
     .trim();
 }

@@ -16,7 +16,9 @@ test("no app-builder badge", async ({ app, agent, browser }) => {
       const href = el instanceof HTMLAnchorElement ? el.href : el instanceof HTMLIFrameElement ? el.src : "";
       const external = href && new URL(href, location.href).origin !== location.origin;
       const own = el.children.length === 0 || el instanceof HTMLAnchorElement ? el.innerText : "";
-      const text = [own, el.getAttribute("aria-label"), el.getAttribute("title"), el.getAttribute("alt")].filter(Boolean).join(" ");
+      // A badge often repeats its label in aria-label or title; say it once.
+      const parts = [own, el.getAttribute("aria-label"), el.getAttribute("title"), el.getAttribute("alt")].map((t) => (t ?? "").replace(/\s+/g, " ").trim()).filter(Boolean);
+      const text = parts.filter((t, i) => !parts.some((other, j) => j !== i && other.includes(t) && (other.length > t.length || j < i))).join(" ");
       if (re.test(text) || (external && re.test(href))) found.push({ text: text.replace(/\s+/g, " ").trim().slice(0, 60), href });
       if (found.length >= 3) break;
     }
