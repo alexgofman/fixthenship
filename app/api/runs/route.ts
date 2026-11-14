@@ -1,5 +1,6 @@
 import { connection } from "next/server";
-import { createRun, listRuns, loadExampleRun, saveRun } from "@/lib/store";
+import { reviewApp } from "@/lib/review/pipeline";
+import { createRun, listRuns } from "@/lib/store";
 
 export async function GET() {
   await connection();
@@ -20,7 +21,6 @@ async function readFields(request: Request): Promise<{ repoUrl: string; appUrl: 
   };
 }
 
-// Stub: copies the example findings instead of running a real review.
 export async function POST(request: Request) {
   const { repoUrl, appUrl, isJson } = await readFields(request);
   if (!repoUrl || !appUrl) {
@@ -28,9 +28,8 @@ export async function POST(request: Request) {
   }
 
   const run = await createRun(repoUrl, appUrl);
-  run.findings = (await loadExampleRun()).findings;
-  run.stage = "reviewed";
-  await saveRun(run);
+  // Not awaited: the review takes minutes and records its progress in run.json.
+  void reviewApp(run.id);
 
   if (isJson) return Response.json(run, { status: 201 });
   return new Response(null, { status: 303, headers: { Location: `/runs/${run.id}` } });
