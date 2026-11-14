@@ -57,6 +57,7 @@ describe("reviewApp", () => {
       };
       const results: CheckResult[] = [];
       for (const ruleId of ruleIds) {
+        if (!(ruleId in outcomes)) continue;
         const screenshots: string[] = [];
         if (outcomes[ruleId] === "fail") {
           const shot = path.join(outDir, ruleId, "attempt-1", "screenshots", "002-failure.png");

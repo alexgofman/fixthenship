@@ -10,7 +10,7 @@ import { runChecks, type RunChecksOptions } from "./runChecks";
 
 const execFileAsync = promisify(execFile);
 
-export const REVIEW_RULES: RuleId[] = ["R1", "R2", "R5", "R6", "R7", "R8"];
+export const REVIEW_RULES: RuleId[] = ["R1", "R2", "R5", "R6", "R7", "R8", "R3", "R4", "R9", "R10"];
 export const APP_TIMEOUT_MS = 30_000;
 
 export type ReviewDeps = {
