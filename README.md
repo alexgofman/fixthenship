@@ -145,7 +145,7 @@ The largest gap is guideline 4.2, "a website in a wrapper", which no tool can pa
 - It tests the web build at iPhone size. Nothing is tested on a native build or a device.
 - The app needs a web version that opens from a link.
 - It covers about ten rules, not the whole App Review Guidelines.
-- It has been run on one sample app.
+- It has been run on two sample apps, both made for the purpose.
 - The mascot and the pricing page are in; payments are not.
 - It predicts what a reviewer is likely to flag. Apple makes the decision.
 - Test accounts use a public inbox (mailinator.com) by default, which is fine for demo apps only. Set `TEST_EMAIL_DOMAIN` to a domain whose mail you own for anything with real data.
@@ -165,9 +165,10 @@ The largest gap is guideline 4.2, "a website in a wrapper", which no tool can pa
 
 ## How this was built
 
-Built on 14 November 2026 between 10:00 and 14:45 at Eurasian Hack London. The design and the plan were written the day before, as the rules allow; no code existed before 10:00.
+Built on 14 November 2026 at Eurasian Hack London, between 10:00 and the 16:00 code freeze. The design and the plan were written the day before, as the rules allow; no code existed before 10:00.
 
-- **Devin (Cognition) wrote the product.** 23 build sessions, started through the Devin API from written briefs that each own a set of files, up to six at once on one branch. Devin is also the fixer inside the product: one session per finding, seven at once on the sample app.
+- **Alex Gofman chose the product, set the user flow and made the product calls on the day;** the agents below wrote the code. Commits under his GitHub name are Devin's first session and Claude Code's small fixes, pushed from his account.
+- **Devin (Cognition) wrote the product.** 28 build sessions (about 95% of the lines), started through the Devin API from written briefs that each own a set of files, up to six at once on one branch. Devin is also the fixer inside the product: one session per finding, seven at once on the sample app.
 - **Claude Code (Anthropic) wrote the design, the plan and every brief, reviewed every push, ran every check on a real app, and made small fixes itself.** Each of those is in `BUILDLOG.md`. Separate Claude Code sessions built the marketing website, the mascot and the demo video.
 - **Two independent reviews** of the code, one by a Devin session on its strongest mode and one by a panel of Claude agents with a skeptic for each finding, produced 39 confirmed findings. Six Devin sessions fixed them within the hour.
 - **Lovable built the sample app** that the product reviews, deliberately left with the problems a first-time builder leaves.
